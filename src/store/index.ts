@@ -118,14 +118,28 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   transferFiles: (albumId, fileIds, albumName) => {
-    console.log('[Store] 秒传文件', albumId, fileIds.length)
+    console.log('[Store] 秒传文件', albumId, fileIds.length, albumName)
     const state = get()
-    const category = state.categories.find((c) => c.id === albumId)
+    const categories = state.categories.map((c) => ({ ...c, files: [...c.files] }))
+    const category = categories.find((c) => c.id === albumId)
     if (!category) return { savedSize: 0, count: 0 }
 
     const selectedFiles = category.files.filter((f) => fileIds.includes(f.id))
     const savedSize = selectedFiles.reduce((sum, f) => sum + f.size, 0)
     const count = selectedFiles.length
+
+    category.files = category.files.map((f) => {
+      if (fileIds.includes(f.id)) {
+        return { ...f, status: 'transferred' as const, targetAlbum: albumName }
+      }
+      return f
+    })
+
+    const duplicateFiles = category.files.filter(
+      (f) => f.status !== 'deleted' && f.status !== 'transferred' && category.cloudFiles.some((c) => c.hash === f.hash)
+    )
+    category.duplicateCount = duplicateFiles.length
+    category.duplicateSize = duplicateFiles.reduce((sum, f) => sum + f.size, 0)
 
     const newRecords: TransferRecord[] = selectedFiles.map((f) => ({
       id: generateId(),
@@ -144,15 +158,19 @@ export const useAppStore = create<AppState>((set, get) => ({
     newStats.todayTransferCount += count
     newStats.records = [...newRecords, ...newStats.records]
 
-    set({ stats: newStats })
+    const remainingSelected = get().selectedFileIds.filter(
+      (id) => !fileIds.includes(id)
+    )
 
-    return { savedSize, count }
+    set({ categories, stats: newStats, selectedFileIds: remainingSelected })
+
+    return { savedSize, count, fileNames: selectedFiles.map((f) => f.name) }
   },
 
   deleteLocalFiles: (albumId, fileIds) => {
     console.log('[Store] 删除本地文件', albumId, fileIds.length)
     const state = get()
-    const categories = state.categories.map((c) => ({ ...c }))
+    const categories = state.categories.map((c) => ({ ...c, files: [...c.files] }))
     const category = categories.find((c) => c.id === albumId)
 
     if (!category) return { freedSize: 0, count: 0 }
@@ -161,17 +179,21 @@ export const useAppStore = create<AppState>((set, get) => ({
     const freedSize = filesToDelete.reduce((sum, f) => sum + f.size, 0)
     const count = filesToDelete.length
 
-    category.files = category.files.filter((f) => !fileIds.includes(f.id))
-    category.totalCount -= count
-    category.totalSize -= freedSize
-    category.duplicateCount = Math.max(
-      0,
-      category.duplicateCount - count
+    category.files = category.files.map((f) => {
+      if (fileIds.includes(f.id)) {
+        return { ...f, status: 'deleted' as const }
+      }
+      return f
+    })
+
+    category.totalCount = category.files.filter((f) => f.status !== 'deleted').length
+    category.totalSize = category.files.filter((f) => f.status !== 'deleted').reduce((sum, f) => sum + f.size, 0)
+
+    const duplicateFiles = category.files.filter(
+      (f) => f.status !== 'deleted' && f.status !== 'transferred' && category.cloudFiles.some((c) => c.hash === f.hash)
     )
-    category.duplicateSize = Math.max(
-      0,
-      category.duplicateSize - freedSize
-    )
+    category.duplicateCount = duplicateFiles.length
+    category.duplicateSize = duplicateFiles.reduce((sum, f) => sum + f.size, 0)
 
     const remainingSelected = get().selectedFileIds.filter(
       (id) => !fileIds.includes(id)

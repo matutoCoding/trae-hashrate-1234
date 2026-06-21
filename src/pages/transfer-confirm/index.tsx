@@ -62,10 +62,12 @@ const TransferConfirmPage: React.FC = () => {
           .map((f) => f.id)
       : []
 
+    const targetAlbumName = selectedCategory?.name || albumNameParam
+
     const result = transferFiles(
-      selectedAlbum,
+      albumId,
       fileIdsToTransfer.length > 0 ? fileIdsToTransfer : [],
-      selectedCategory?.name || albumNameParam
+      targetAlbumName
     )
 
     const actualCount = result.count > 0 ? result.count : fileCount
@@ -74,7 +76,7 @@ const TransferConfirmPage: React.FC = () => {
     setResultInfo({
       count: actualCount,
       savedSize: actualSaved,
-      albumName: selectedCategory?.name || albumNameParam
+      albumName: targetAlbumName
     })
 
     clearSelection()

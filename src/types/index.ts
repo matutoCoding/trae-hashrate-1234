@@ -7,6 +7,8 @@ export interface MediaFile {
   createTime: number
   thumbnail: string
   duration?: number
+  status?: 'normal' | 'transferred' | 'deleted'
+  targetAlbum?: string
 }
 
 export interface AlbumCategory {

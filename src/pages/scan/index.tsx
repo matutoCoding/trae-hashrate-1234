@@ -60,32 +60,54 @@ const ScanPage: React.FC = () => {
   const chooseFiles = useCallback(async () => {
     try {
       let files: any[] = []
-      let mediaType: any[] = []
 
-      if (selectedSource === 'album') {
+      const sourceName =
+        selectedSource === 'wechat' ? '聊天文件' :
+        selectedSource === 'album' ? '相册文件' : '图片视频'
+
+      if (selectedSource === 'wechat') {
+        Taro.showLoading({
+          title: `请选择${sourceName}...`,
+          mask: true
+        })
+      }
+
+      let mediaType: any[]
+      let chooseCount: number
+
+      if (selectedSource === 'wechat') {
         mediaType = ['image', 'video']
-      } else if (selectedSource === 'wechat') {
-        mediaType = ['image']
+        chooseCount = 50
+      } else if (selectedSource === 'album') {
+        mediaType = ['image', 'video']
+        chooseCount = 50
       } else {
         mediaType = ['image', 'video']
+        chooseCount = 50
       }
 
       try {
         const result = await Taro.chooseMedia({
-          count: 50,
+          count: chooseCount,
           mediaType: mediaType as any,
           sourceType: ['album'],
-          sizeType: ['original', 'compressed'],
+          sizeType: ['original'],
           camera: 'back'
         })
+        if (selectedSource === 'wechat') {
+          Taro.hideLoading()
+        }
         if (result.tempFiles) {
           files = result.tempFiles as any[]
         }
       } catch (chooseErr) {
+        if (selectedSource === 'wechat') {
+          Taro.hideLoading()
+        }
         console.log('[Scan] chooseMedia 失败，降级使用 chooseImage:', chooseErr)
         try {
           const imgResult = await Taro.chooseImage({
-            count: 50,
+            count: chooseCount,
             sizeType: ['original', 'compressed'],
             sourceType: ['album']
           })
@@ -109,7 +131,7 @@ const ScanPage: React.FC = () => {
         return null
       }
 
-      console.log('[Scan] 选择了', files.length, '个文件')
+      console.log('[Scan] 选择了', files.length, '个文件，来源:', selectedSource)
 
       const mediaFiles: MediaFile[] = files.map((f, index) => {
         const filePath = f.tempFilePath || f.path || `file_${index}`
@@ -126,11 +148,15 @@ const ScanPage: React.FC = () => {
           ? (1036 + index % 10)
           : ((64 + index * 27) % 1080 || 64)
 
+        const prefix = selectedSource === 'wechat' ? 'WECHAT' : 'IMG'
+        const namePrefix = selectedSource === 'wechat' && fileType === 'video' ? 'WECHAT_VID' :
+          fileType === 'video' ? 'VID' : prefix
+
         return {
           id: generateId(),
           name: fileType === 'video'
-            ? `VID_${new Date(createTime).toISOString().slice(0, 10).replace(/-/g, '')}_${index + 1}.mp4`
-            : `IMG_${new Date(createTime).toISOString().slice(0, 10).replace(/-/g, '')}_${index + 1}.jpg`,
+            ? `${namePrefix}_${new Date(createTime).toISOString().slice(0, 10).replace(/-/g, '')}_${index + 1}.mp4`
+            : `${namePrefix}_${new Date(createTime).toISOString().slice(0, 10).replace(/-/g, '')}_${index + 1}.jpg`,
           size: fileSize,
           type: fileType,
           hash,
@@ -142,6 +168,9 @@ const ScanPage: React.FC = () => {
 
       return mediaFiles
     } catch (error) {
+      if (selectedSource === 'wechat') {
+        Taro.hideLoading()
+      }
       console.error('[Scan] 选择文件异常:', error)
       Taro.showToast({ title: '选择文件出错', icon: 'none' })
       return null

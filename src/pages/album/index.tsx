@@ -13,19 +13,37 @@ const AlbumPage: React.FC = () => {
     console.log('[Album] 页面显示')
   })
 
+  const validCategories = useMemo(() => {
+    return categories.map((cat) => {
+      const validFiles = cat.files.filter(
+        (f) => f.status !== 'deleted' && f.status !== 'transferred'
+      )
+      const dupFiles = validFiles.filter((f) =>
+        cat.cloudFiles.some((c) => c.hash === f.hash)
+      )
+      return {
+        ...cat,
+        validTotalCount: validFiles.length,
+        validTotalSize: validFiles.reduce((sum, f) => sum + f.size, 0),
+        validDuplicateCount: dupFiles.length,
+        validDuplicateSize: dupFiles.reduce((sum, f) => sum + f.size, 0)
+      }
+    })
+  }, [categories])
+
   const totalCount = useMemo(
-    () => categories.reduce((sum, c) => sum + c.totalCount, 0),
-    [categories]
+    () => validCategories.reduce((sum, c) => sum + c.validTotalCount, 0),
+    [validCategories]
   )
 
   const totalDuplicate = useMemo(
-    () => categories.reduce((sum, c) => sum + c.duplicateCount, 0),
-    [categories]
+    () => validCategories.reduce((sum, c) => sum + c.validDuplicateCount, 0),
+    [validCategories]
   )
 
   const totalDuplicateSize = useMemo(
-    () => categories.reduce((sum, c) => sum + c.duplicateSize, 0),
-    [categories]
+    () => validCategories.reduce((sum, c) => sum + c.validDuplicateSize, 0),
+    [validCategories]
   )
 
   const handleCategoryClick = (categoryId: string) => {
@@ -81,14 +99,20 @@ const AlbumPage: React.FC = () => {
       <View className={styles.categorySection}>
         <View className={styles.sectionHeader}>
           <Text className={styles.sectionTitle}>相册分类</Text>
-          <Text className={styles.sectionAction}>共 {categories.length} 类</Text>
+          <Text className={styles.sectionAction}>共 {validCategories.length} 类</Text>
         </View>
 
         <View className={styles.categoryList}>
-          {categories.map((category) => (
+          {validCategories.map((category) => (
             <AlbumCategoryCard
               key={category.id}
-              category={category}
+              category={{
+                ...category,
+                totalCount: category.validTotalCount,
+                totalSize: category.validTotalSize,
+                duplicateCount: category.validDuplicateCount,
+                duplicateSize: category.validDuplicateSize
+              }}
               onClick={() => handleCategoryClick(category.id)}
             />
           ))}

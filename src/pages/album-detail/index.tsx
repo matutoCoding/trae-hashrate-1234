@@ -23,11 +23,30 @@ const AlbumDetailPage: React.FC = () => {
     [categories, categoryId]
   )
 
+  const availableFiles = useMemo(() => {
+    if (!category) return []
+    return category.files.filter(
+      (f) => f.status !== 'deleted' && f.status !== 'transferred'
+    )
+  }, [category])
+
   const duplicateFiles = useMemo(() => {
     if (!category) return []
-    const cloudHashes = new Set(category.cloudFiles.map((f) => f.hash))
-    return category.files.filter((f) => cloudHashes.has(f.hash))
-  }, [category])
+    return availableFiles.filter((f) =>
+      category.cloudFiles.some((c) => c.hash === f.hash)
+    )
+  }, [category, availableFiles])
+
+  const validTotalCount = availableFiles.length
+  const validTotalSize = useMemo(
+    () => availableFiles.reduce((sum, f) => sum + f.size, 0),
+    [availableFiles]
+  )
+
+  const findCloudMatch = (fileHash: string) => {
+    if (!category) return null
+    return category.cloudFiles.find((c) => c.hash === fileHash) || null
+  }
 
   const allDuplicateIds = useMemo(
     () => duplicateFiles.map((f) => f.id),
@@ -111,7 +130,7 @@ const AlbumDetailPage: React.FC = () => {
           <View className={styles.categoryText}>
             <Text className={styles.categoryName}>{category.name}</Text>
             <Text className={styles.categoryCount}>
-              共 {category.totalCount} 项，云端已有 {category.cloudFiles.length} 项
+              共 {validTotalCount} 项，云端已有 {category.cloudFiles.length} 项
             </Text>
           </View>
         </View>
@@ -119,7 +138,7 @@ const AlbumDetailPage: React.FC = () => {
         <View className={styles.statsRow}>
           <View className={styles.statItem}>
             <Text className={`${styles.statValue} ${styles.primary}`}>
-              {category.totalCount}
+              {validTotalCount}
             </Text>
             <Text className={styles.statLabel}>本机总数</Text>
           </View>
@@ -157,10 +176,8 @@ const AlbumDetailPage: React.FC = () => {
             <Text className={styles.emptyText}>暂无重复文件</Text>
           </View>
         ) : (
-          duplicateFiles.map((file, index) => {
-            const cloudMatch = category.cloudFiles[
-              index % category.cloudFiles.length
-            ]
+          duplicateFiles.map((file) => {
+            const cloudMatch = findCloudMatch(file.hash)
             const isSelected = selectedFileIds.includes(file.id)
 
             return (
@@ -202,14 +219,14 @@ const AlbumDetailPage: React.FC = () => {
                     </Text>
                     <View className={styles.compareThumb}>
                       <Image
-                        src={cloudMatch.thumbnail}
+                        src={cloudMatch?.thumbnail || ''}
                         className={styles.thumbImage}
                         mode='aspectFill'
                       />
                     </View>
-                    <Text className={styles.compareName}>{cloudMatch.name}</Text>
+                    <Text className={styles.compareName}>{cloudMatch?.name || '云端文件'}</Text>
                     <Text className={styles.compareTime}>
-                      {formatTime(cloudMatch.createTime)}
+                      {formatTime(cloudMatch?.createTime || 0)}
                     </Text>
                   </View>
 
