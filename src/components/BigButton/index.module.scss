@@ -1,0 +1,72 @@
+@use '@/styles/variables.scss' as *;
+
+.bigButton {
+  @include button-reset;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border-radius: $radius-button;
+  transition: all $transition-base;
+  
+  &:active {
+    opacity: 0.9;
+    transform: scale(0.98);
+  }
+
+  &.disabled {
+    opacity: 0.5;
+    pointer-events: none;
+  }
+
+  &.primary {
+    background: linear-gradient(135deg, $color-primary 0%, $color-primary-light 100%);
+    color: $color-text-white;
+  }
+
+  &.success {
+    background: linear-gradient(135deg, $color-success 0%, $color-success-light 100%);
+    color: $color-text-white;
+  }
+
+  &.danger {
+    background: linear-gradient(135deg, $color-error 0%, #ff7875 100%);
+    color: $color-text-white;
+  }
+
+  &.default {
+    background: $color-bg-card;
+    color: $color-text-primary;
+    border: 2rpx solid $color-border;
+  }
+
+  &.large {
+    height: 120rpx;
+    padding: 0 $spacing-xl;
+  }
+
+  &.normal {
+    height: $button-height-lg;
+    padding: 0 $spacing-lg;
+  }
+}
+
+.buttonText {
+  font-size: $font-size-xl;
+  font-weight: $font-weight-semibold;
+  line-height: 1.2;
+}
+
+.buttonSubText {
+  font-size: $font-size-sm;
+  opacity: 0.9;
+  margin-top: $spacing-xs;
+}
+
+.large .buttonText {
+  font-size: 36rpx;
+}
+
+.normal .buttonText {
+  font-size: $font-size-lg;
+}

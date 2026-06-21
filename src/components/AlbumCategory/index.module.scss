@@ -1,0 +1,135 @@
+@use '@/styles/variables.scss' as *;
+
+.card {
+  background: $color-bg-card;
+  border-radius: $radius-lg;
+  padding: $spacing-lg;
+  box-shadow: $shadow-card;
+  margin-bottom: $spacing-md;
+  transition: all $transition-base;
+
+  &:active {
+    transform: scale(0.99);
+    box-shadow: $shadow-card-hover;
+  }
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  margin-bottom: $spacing-md;
+}
+
+.iconWrap {
+  width: 88rpx;
+  height: 88rpx;
+  border-radius: $radius-lg;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: $spacing-md;
+}
+
+.icon {
+  font-size: 44rpx;
+}
+
+.info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 6rpx;
+}
+
+.name {
+  font-size: $font-size-lg;
+  font-weight: $font-weight-semibold;
+  color: $color-text-primary;
+}
+
+.count {
+  font-size: $font-size-sm;
+  color: $color-text-tertiary;
+}
+
+.arrow {
+  width: 48rpx;
+  height: 48rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.arrowText {
+  font-size: 40rpx;
+  color: $color-text-tertiary;
+}
+
+.preview {
+  display: flex;
+  gap: $spacing-sm;
+  margin-bottom: $spacing-md;
+}
+
+.previewImg {
+  flex: 1;
+  height: 140rpx;
+  border-radius: $radius-md;
+  background: $color-bg-hover;
+}
+
+.footer {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-sm;
+}
+
+.duplicateInfo {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.duplicateBadge {
+  background: $color-warning-bg;
+  padding: 4rpx 16rpx;
+  border-radius: $radius-round;
+}
+
+.duplicateBadgeText {
+  font-size: $font-size-xs;
+  color: $color-warning;
+  font-weight: $font-weight-medium;
+}
+
+.duplicateSize {
+  font-size: $font-size-sm;
+  color: $color-text-secondary;
+}
+
+.progressWrap {
+  display: flex;
+  align-items: center;
+  gap: $spacing-sm;
+}
+
+.progressBg {
+  flex: 1;
+  height: 12rpx;
+  background: $color-divider;
+  border-radius: $radius-round;
+  overflow: hidden;
+}
+
+.progressFill {
+  height: 100%;
+  border-radius: $radius-round;
+  transition: width $transition-base ease;
+}
+
+.progressText {
+  font-size: $font-size-xs;
+  color: $color-text-tertiary;
+  min-width: 80rpx;
+  text-align: right;
+}

@@ -1,0 +1,290 @@
+@use '@/styles/variables.scss' as *;
+
+.page {
+  min-height: 100vh;
+  background: $color-bg-page;
+  padding-bottom: 200rpx;
+}
+
+.header {
+  background: linear-gradient(135deg, $color-success 0%, $color-success-light 100%);
+  padding: $spacing-xxl $page-spacing $spacing-xl;
+  color: $color-text-white;
+}
+
+.headerIcon {
+  font-size: 72rpx;
+  margin-bottom: $spacing-md;
+}
+
+.headerTitle {
+  font-size: $font-size-xxl;
+  font-weight: $font-weight-bold;
+  margin-bottom: $spacing-xs;
+}
+
+.headerSubtitle {
+  font-size: $font-size-md;
+  opacity: 0.9;
+}
+
+.saveSection {
+  margin: -$spacing-lg $page-padding 0;
+}
+
+.saveCard {
+  background: $color-bg-card;
+  border-radius: $radius-xl;
+  padding: $spacing-xl;
+  box-shadow: $shadow-card;
+  text-align: center;
+  margin-bottom: $spacing-lg;
+}
+
+.saveValue {
+  font-size: 56rpx;
+  font-weight: $font-weight-bold;
+  color: $color-success;
+  margin-bottom: $spacing-xs;
+}
+
+.saveLabel {
+  font-size: $font-size-md;
+  color: $color-text-secondary;
+}
+
+.saveDetails {
+  display: flex;
+  justify-content: space-around;
+  margin-top: $spacing-lg;
+  padding-top: $spacing-lg;
+  border-top: 1rpx solid $color-divider;
+}
+
+.saveDetailItem {
+  text-align: center;
+}
+
+.saveDetailValue {
+  font-size: $font-size-xl;
+  font-weight: $font-weight-semibold;
+  color: $color-text-primary;
+  display: block;
+}
+
+.saveDetailLabel {
+  font-size: $font-size-xs;
+  color: $color-text-tertiary;
+  margin-top: 4rpx;
+}
+
+.section {
+  background: $color-bg-card;
+  margin: 0 $page-spacing $spacing-md;
+  border-radius: $radius-lg;
+  box-shadow: $shadow-card;
+}
+
+.sectionHeader {
+  padding: $spacing-md $spacing-lg;
+  border-bottom: 1rpx solid $color-divider;
+}
+
+.sectionTitle {
+  font-size: $font-size-lg;
+  font-weight: $font-weight-semibold;
+  color: $color-text-primary;
+}
+
+.albumList {
+  padding: $spacing-sm $spacing-lg;
+}
+
+.albumOption {
+  display: flex;
+  align-items: center;
+  padding: $spacing-md 0;
+  border-bottom: 1rpx solid $color-divider;
+
+  &:last-child {
+    border-bottom: none;
+  }
+
+  &.selected {
+    .albumCheck {
+      background: $color-success;
+      border-color: $color-success;
+    }
+  }
+}
+
+.albumIcon {
+  width: 72rpx;
+  height: 72rpx;
+  border-radius: $radius-md;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 36rpx;
+  margin-right: $spacing-md;
+}
+
+.albumInfo {
+  flex: 1;
+}
+
+.albumName {
+  font-size: $font-size-md;
+  color: $color-text-primary;
+  font-weight: $font-weight-medium;
+  margin-bottom: 4rpx;
+}
+
+.albumCount {
+  font-size: $font-size-xs;
+  color: $color-text-tertiary;
+}
+
+.albumCheck {
+  width: 44rpx;
+  height: 44rpx;
+  border-radius: 50%;
+  border: 2rpx solid $color-border;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.checkIcon {
+  font-size: 28rpx;
+  color: $color-text-white;
+}
+
+.tipSection {
+  background: $color-success-bg;
+  margin: 0 $page-spacing $spacing-md;
+  border-radius: $radius-lg;
+  padding: $spacing-md $spacing-lg;
+  display: flex;
+  align-items: flex-start;
+  gap: $spacing-sm;
+}
+
+.tipIcon {
+  font-size: 32rpx;
+  flex-shrink: 0;
+}
+
+.tipText {
+  font-size: $font-size-sm;
+  color: $color-text-secondary;
+  line-height: 1.6;
+  flex: 1;
+}
+
+.bottomBar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: $color-bg-card;
+  padding: $spacing-md $page-padding;
+  padding-bottom: calc(#{$spacing-md} + env(safe-area-inset-bottom));
+  box-shadow: 0 -2rpx 12rpx rgba(0, 0, 0, 0.06);
+}
+
+.bottomInfo {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: $spacing-md;
+}
+
+.bottomLabel {
+  font-size: $font-size-sm;
+  color: $color-text-secondary;
+}
+
+.bottomValue {
+  font-size: $font-size-lg;
+  font-weight: $font-weight-semibold;
+  color: $color-success;
+}
+
+.successModal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.successContent {
+  background: $color-bg-card;
+  border-radius: $radius-xl;
+  padding: $spacing-xxl;
+  margin: 0 $spacing-xl;
+  text-align: center;
+  width: 100%;
+  max-width: 560rpx;
+}
+
+.successIcon {
+  width: 120rpx;
+  height: 120rpx;
+  margin: 0 auto $spacing-lg;
+  border-radius: 50%;
+  background: $color-success-bg;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 64rpx;
+}
+
+.successTitle {
+  font-size: $font-size-xxl;
+  font-weight: $font-weight-bold;
+  color: $color-text-primary;
+  margin-bottom: $spacing-sm;
+}
+
+.successDesc {
+  font-size: $font-size-md;
+  color: $color-text-secondary;
+  margin-bottom: $spacing-lg;
+  line-height: 1.5;
+}
+
+.successSave {
+  background: $color-success-bg;
+  border-radius: $radius-lg;
+  padding: $spacing-md;
+  margin-bottom: $spacing-xl;
+}
+
+.successSaveValue {
+  font-size: $font-size-xxl;
+  font-weight: $font-weight-bold;
+  color: $color-success;
+  display: block;
+}
+
+.successSaveLabel {
+  font-size: $font-size-sm;
+  color: $color-text-secondary;
+}
+
+.successButton {
+  margin-bottom: $spacing-md;
+}
+
+.successLink {
+  font-size: $font-size-sm;
+  color: $color-primary;
+  text-align: center;
+}

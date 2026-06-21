@@ -1,0 +1,111 @@
+import React, { useState } from 'react'
+import { View, Text, ScrollView } from '@tarojs/components'
+import Taro, { useDidShow } from '@tarojs/taro'
+import styles from './index.module.scss'
+import { mockSaveStats } from '../../data/mock'
+import { SaveStats } from '../../types'
+import { formatFileSize, formatTime, formatDate } from '../../utils/format'
+
+const StatsPage: React.FC = () => {
+  const [stats, setStats] = useState<SaveStats>(mockSaveStats)
+
+  useDidShow(() => {
+    console.log('[Stats] 页面显示')
+  })
+
+  const handleRefresh = () => {
+    console.log('[Stats] 下拉刷新')
+    setTimeout(() => {
+      Taro.stopPullDownRefresh()
+    }, 1000)
+  }
+
+  const handleGoToTransfer = () => {
+    Taro.switchTab({
+      url: '/pages/scan/index'
+    })
+  }
+
+  return (
+    <ScrollView
+      className={styles.page}
+      scrollY
+      refresherEnabled
+      onRefresherRefresh={handleRefresh}
+    >
+      <View className={styles.header}>
+        <Text className={styles.headerTitle}>累计节省流量</Text>
+        <Text className={styles.headerValue}>{formatFileSize(stats.totalSavedSize)}</Text>
+        <Text className={styles.headerSubtitle}>
+          共完成 {stats.totalTransferCount} 次秒传
+        </Text>
+      </View>
+
+      <View className={styles.statsSection}>
+        <View className={styles.statsGrid}>
+          <View className={styles.statCard}>
+            <Text className={styles.statIcon}>📅</Text>
+            <Text className={styles.statValue}>{formatFileSize(stats.todaySavedSize)}</Text>
+            <Text className={styles.statLabel}>今日节省</Text>
+          </View>
+          <View className={styles.statCard}>
+            <Text className={styles.statIcon}>⚡</Text>
+            <Text className={styles.statValue}>{stats.todayTransferCount}</Text>
+            <Text className={styles.statLabel}>今日秒传</Text>
+          </View>
+          <View className={styles.statCard}>
+            <Text className={styles.statIcon}>📁</Text>
+            <Text className={styles.statValue}>{stats.totalTransferCount}</Text>
+            <Text className={styles.statLabel}>总秒传数</Text>
+          </View>
+        </View>
+      </View>
+
+      <View className={styles.tipSection}>
+        <Text className={styles.tipIcon}>💚</Text>
+        <Text className={styles.tipText}>
+          秒传技术通过文件哈希比对，云端已有的文件无需重新上传，既省流量又省时间。重复文件直接创建到家庭相册，全家共享。
+        </Text>
+      </View>
+
+      <View className={styles.section} style={{ margin: `0 ${32}rpx ${24}rpx` }}>
+        <View className={styles.sectionHeader}>
+          <Text className={styles.sectionTitle}>秒传记录</Text>
+          <Text className={styles.sectionAction} onClick={handleGoToTransfer}>去秒传</Text>
+        </View>
+
+        {stats.records.length > 0 ? (
+          <View className={styles.recordList}>
+            {stats.records.slice(0, 10).map(record => (
+              <View key={record.id} className={styles.recordItem}>
+                <View className={styles.recordIcon}>
+                  <Text>{record.type === 'video' ? '🎬' : '🖼️'}</Text>
+                </View>
+                <View className={styles.recordInfo}>
+                  <Text className={styles.recordName}>{record.fileName}</Text>
+                  <View className={styles.recordMeta}>
+                    <Text className={styles.recordAlbum}>{record.targetAlbum}</Text>
+                    <Text>{formatTime(record.transferTime)}</Text>
+                  </View>
+                </View>
+                <View className={styles.recordSave}>
+                  <Text className={styles.saveValue}>
+                    - {formatFileSize(record.savedSize)}
+                  </Text>
+                  <Text className={styles.saveLabel}>节省</Text>
+                </View>
+              </View>
+            ))}
+          </View>
+        ) : (
+          <View className={styles.emptyState}>
+            <Text className={styles.emptyIcon}>📭</Text>
+            <Text className={styles.emptyText}>暂无秒传记录</Text>
+          </View>
+        )}
+      </View>
+    </ScrollView>
+  )
+}
+
+export default StatsPage

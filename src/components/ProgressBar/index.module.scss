@@ -1,0 +1,27 @@
+@use '@/styles/variables.scss' as *;
+
+.progressContainer {
+  display: flex;
+  align-items: center;
+  gap: $spacing-md;
+}
+
+.progressBg {
+  flex: 1;
+  background-color: $color-divider;
+  border-radius: $radius-round;
+  overflow: hidden;
+}
+
+.progressFill {
+  background: linear-gradient(90deg, $color-primary 0%, $color-primary-light 100%);
+  border-radius: $radius-round;
+  transition: width $transition-base ease;
+}
+
+.progressText {
+  font-size: $font-size-sm;
+  color: $color-text-secondary;
+  min-width: 100rpx;
+  text-align: right;
+}
