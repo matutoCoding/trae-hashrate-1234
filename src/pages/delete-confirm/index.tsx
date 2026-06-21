@@ -34,21 +34,17 @@ const DeleteConfirmPage: React.FC = () => {
   )
 
   const fileCount = useMemo(() => {
-    if (countParam > 0) return countParam
     if (!currentCategory) return 0
     return currentCategory.files.filter((f) => selectedFileIds.includes(f.id))
       .length
-  }, [countParam, currentCategory, selectedFileIds])
+  }, [currentCategory, selectedFileIds])
 
   const savedSize = useMemo(() => {
     if (!currentCategory) return 0
     const selectedFiles = currentCategory.files.filter((f) =>
       selectedFileIds.includes(f.id)
     )
-    if (selectedFiles.length > 0) {
-      return selectedFiles.reduce((sum, f) => sum + f.size, 0)
-    }
-    return currentCategory.duplicateSize
+    return selectedFiles.reduce((sum, f) => sum + f.size, 0)
   }, [currentCategory, selectedFileIds])
 
   const canDelete = checked1 && checked2

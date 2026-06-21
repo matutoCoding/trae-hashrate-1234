@@ -21,6 +21,8 @@ const AlbumDetailPage: React.FC = () => {
   const selectAllFiles = useAppStore((state) => state.selectAllFiles)
   const clearSelection = useAppStore((state) => state.clearSelection)
   const setCurrentCategoryId = useAppStore((state) => state.setCurrentCategoryId)
+  const cloudHashPool = useAppStore((state) => state.cloudHashPool)
+  const getCloudHashMatch = useAppStore((state) => state.getCloudHashMatch)
 
   const category = useMemo(
     () => categories.find((c: AlbumCategory) => c.id === categoryId),
@@ -53,9 +55,9 @@ const AlbumDetailPage: React.FC = () => {
       if (timeFilter !== 'all' && f.createTime < timeThreshold) {
         return false
       }
-      return category.cloudFiles.some((c) => c.hash === f.hash)
+      return !!getCloudHashMatch(f.hash)
     })
-  }, [category, availableFiles, familyFilter, timeFilter, timeThreshold])
+  }, [category, availableFiles, familyFilter, timeFilter, timeThreshold, getCloudHashMatch])
 
   const validTotalCount = availableFiles.length
   const validTotalSize = useMemo(
@@ -64,8 +66,7 @@ const AlbumDetailPage: React.FC = () => {
   )
 
   const findCloudMatch = (fileHash: string) => {
-    if (!category) return null
-    return category.cloudFiles.find((c) => c.hash === fileHash) || null
+    return getCloudHashMatch(fileHash) || null
   }
 
   const allDuplicateIds = useMemo(

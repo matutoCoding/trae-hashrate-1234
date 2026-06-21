@@ -124,10 +124,10 @@ export const mockAlbumCategories: AlbumCategory[] = [
     totalSize: 48758784,
     duplicateSize: 45088768,
     files: [
-      createMediaFile('daily-local-1', 'IMG_早餐_01.jpg', 2097152, 'image', now - 5 * day, 292, undefined, undefined, 'daily'),
-      createMediaFile('daily-local-2', 'IMG_宠物_01.jpg', 3145728, 'image', now - 3 * day, 237, 'hash-daily-1', undefined, 'daily'),
-      createMediaFile('daily-local-3', 'VID_猫咪玩耍.mp4', 41943040, 'video', now - 2 * day, 659, 'hash-daily-2', 65, 'daily'),
-      createMediaFile('daily-local-4', 'IMG_花朵_01.jpg', 1572864, 'image', now - 1 * day, 1080, undefined, undefined, 'daily'),
+      { ...createMediaFile('daily-local-1', 'IMG_早餐_01.jpg', 2097152, 'image', now - 5 * day, 292, undefined, undefined, 'daily'), scanRecordId: undefined },
+      { ...createMediaFile('daily-local-2', 'IMG_宠物_01.jpg', 3145728, 'image', now - 3 * day, 237, 'hash-daily-1', undefined, 'daily'), scanRecordId: 'scan-record-1' },
+      { ...createMediaFile('daily-local-3', 'VID_猫咪玩耍.mp4', 41943040, 'video', now - 2 * day, 659, 'hash-daily-2', 65, 'daily'), scanRecordId: 'scan-record-1' },
+      { ...createMediaFile('daily-local-4', 'IMG_花朵_01.jpg', 1572864, 'image', now - 1 * day, 1080, undefined, undefined, 'daily'), scanRecordId: undefined },
     ],
     cloudFiles: [
       createMediaFile('daily-cloud-1', '家里的猫.jpg', 3145728, 'image', now - 7 * day, 237, 'hash-daily-1', undefined, 'daily'),
@@ -168,7 +168,7 @@ export const mockTransferRecords: TransferRecord[] = [
 
 export const mockScanRecords: ScanRecord[] = [
   {
-    id: generateId(),
+    id: 'scan-record-1',
     source: 'album',
     sourceName: '手机相册',
     totalCount: 28,
@@ -176,11 +176,11 @@ export const mockScanRecords: ScanRecord[] = [
     duplicateCount: 8,
     duplicateSize: 36700160,
     scanTime: now - 2 * day,
-    fileIds: [],
+    fileIds: ['daily-local-2', 'daily-local-3'],
     categoryId: 'daily'
   },
   {
-    id: generateId(),
+    id: 'scan-record-2',
     source: 'wechat',
     sourceName: '聊天下载目录',
     totalCount: 15,

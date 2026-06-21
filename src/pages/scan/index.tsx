@@ -22,6 +22,7 @@ const ScanPage: React.FC = () => {
   const [scannedFiles, setScannedFiles] = useState<MediaFile[]>([])
   const [isWechatEnv, setIsWechatEnv] = useState(false)
   const [showRecords, setShowRecords] = useState(false)
+  const [lastScanResult, setLastScanResult] = useState<{ scanRecordId: string; categoryId: string } | null>(null)
 
   const scanStatus = useAppStore((state) => state.scanStatus)
   const setScanStatus = useAppStore((state) => state.setScanStatus)
@@ -65,8 +66,8 @@ const ScanPage: React.FC = () => {
     }
   ]
 
-  const computeHash = (filePath: string, size: number, time: number): string => {
-    const str = `${filePath}_${size}_${time}`
+  const computeHash = (filePath: string, size: number, name: string): string => {
+    const str = `${name}_${size}_${filePath}`
     let hash = 0
     for (let i = 0; i < str.length; i++) {
       const char = str.charCodeAt(i)
@@ -84,10 +85,18 @@ const ScanPage: React.FC = () => {
         try {
           win.wx.chooseMessageFile({
             count: 50,
-            type: 'all',
+            type: 'file',
+            extension: ['jpg', 'jpeg', 'png', 'gif', 'mp4', 'mov', 'avi'],
             success: (res: any) => {
               console.log('[Scan] 微信 chooseMessageFile 成功:', res.tempFiles?.length)
-              resolve(res.tempFiles || [])
+              const imageVideoFiles = (res.tempFiles || []).filter((f: any) => {
+                const t = (f.type || '').toLowerCase()
+                const n = (f.name || '').toLowerCase()
+                return t === 'image' || t === 'video' ||
+                  n.endsWith('.jpg') || n.endsWith('.jpeg') || n.endsWith('.png') ||
+                  n.endsWith('.gif') || n.endsWith('.mp4') || n.endsWith('.mov') || n.endsWith('.avi')
+              })
+              resolve(imageVideoFiles)
             },
             fail: (err: any) => {
               console.log('[Scan] 微信 chooseMessageFile 失败:', err)
@@ -119,32 +128,27 @@ const ScanPage: React.FC = () => {
 
         if (isWechatEnv) {
           const wechatFiles = await chooseWechatFiles()
+          Taro.hideLoading()
           if (wechatFiles && wechatFiles.length > 0) {
             files = wechatFiles.map((f: any) => ({
               tempFilePath: f.path || f.tempFilePath,
               size: f.size,
-              fileType: f.type === 'video' ? 'video' : 'image',
+              fileType: f.type === 'video' || (f.name || '').toLowerCase().match(/\.(mp4|mov|avi)$/) ? 'video' : 'image',
               duration: f.duration || 0,
               name: f.name || ''
             }))
+          } else {
+            Taro.showToast({ title: '未选择聊天文件，请重新选择', icon: 'none' })
+            return null
           }
-        }
-      }
-
-      if (files.length === 0) {
-        let mediaType: any[]
-        let chooseCount: number
-
-        if (selectedSource === 'wechat') {
-          mediaType = ['image', 'video']
-          chooseCount = 50
-        } else if (selectedSource === 'album') {
-          mediaType = ['image', 'video']
-          chooseCount = 50
         } else {
-          mediaType = ['image', 'video']
-          chooseCount = 50
+          Taro.hideLoading()
+          Taro.showToast({ title: '请在微信环境中使用聊天文件选择', icon: 'none' })
+          return null
         }
+      } else {
+        let mediaType: any[] = ['image', 'video']
+        let chooseCount = 50
 
         try {
           const result = await Taro.chooseMedia({
@@ -181,10 +185,6 @@ const ScanPage: React.FC = () => {
         }
       }
 
-      if (selectedSource === 'wechat') {
-        Taro.hideLoading()
-      }
-
       if (!files || files.length === 0) {
         Taro.showToast({ title: '未选择文件', icon: 'none' })
         return null
@@ -199,8 +199,10 @@ const ScanPage: React.FC = () => {
           f.fileType === 'video' || f.tempFilePath?.endsWith('.mp4')
             ? 'video'
             : 'image'
-        const createTime = Date.now() - index * 24 * 60 * 60 * 1000 - Math.random() * 30 * 24 * 60 * 60 * 1000
-        const hash = computeHash(filePath, fileSize, Math.floor(createTime / 1000))
+        const originalName = f.name || ''
+        const baseName = originalName && originalName.length > 0 ? originalName : `file_${index}`
+        const createTime = f.time ? f.time * 1000 : (Date.now() - index * 24 * 60 * 60 * 1000)
+        const hash = computeHash(filePath, fileSize, baseName.toLowerCase())
         const duration = f.duration || (fileType === 'video' ? 30 + index * 10 : 0)
 
         const imgId = fileType === 'video'
@@ -210,8 +212,6 @@ const ScanPage: React.FC = () => {
         const prefix = selectedSource === 'wechat' ? 'WECHAT' : 'IMG'
         const namePrefix = selectedSource === 'wechat' && fileType === 'video' ? 'WECHAT_VID' :
           fileType === 'video' ? 'VID' : prefix
-
-        const originalName = f.name || ''
 
         return {
           id: generateId(),
@@ -288,12 +288,13 @@ const ScanPage: React.FC = () => {
       selectedSource === 'album' ? '手机相册' :
       selectedSource === 'wechat' ? '聊天下载目录' : '全部图片视频'
 
-    addScannedFiles(files, {
+    const result = addScannedFiles(files, {
       totalCount: total,
       totalSize: totalSizeValue,
       source: selectedSource,
       sourceName
     })
+    setLastScanResult(result)
 
     setScanStatus('completed')
 
@@ -305,9 +306,15 @@ const ScanPage: React.FC = () => {
   }
 
   const handleGoToAlbum = () => {
-    Taro.switchTab({
-      url: '/pages/album/index'
-    })
+    if (lastScanResult) {
+      Taro.navigateTo({
+        url: `/pages/album-detail/index?id=${lastScanResult.categoryId}&scanRecordId=${lastScanResult.scanRecordId}`
+      })
+    } else {
+      Taro.switchTab({
+        url: '/pages/album/index'
+      })
+    }
   }
 
   const handleQuickTransfer = () => {

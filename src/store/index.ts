@@ -10,6 +10,8 @@ interface AppState {
   selectedFileIds: string[]
   currentCategoryId: string | null
   cloudHashPool: Map<string, MediaFile>
+  lastScanRecordId: string | null
+  lastScanCategoryId: string | null
 
   setScanStatus: (status: ScanStatus) => void
   setCategories: (categories: AlbumCategory[]) => void
@@ -27,7 +29,7 @@ interface AppState {
     totalSize: number
     source: 'album' | 'wechat' | 'all'
     sourceName: string
-  }) => void
+  }) => { scanRecordId: string; categoryId: string }
   transferFiles: (
     albumId: string,
     fileIds: string[],
@@ -68,6 +70,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   selectedFileIds: [],
   currentCategoryId: null,
   cloudHashPool: buildCloudHashPool(mockAlbumCategories),
+  lastScanRecordId: null,
+  lastScanCategoryId: null,
 
   setScanStatus: (status) => set({ scanStatus: status }),
   setCategories: (categories) => set({ categories, cloudHashPool: buildCloudHashPool(categories) }),
@@ -117,6 +121,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     let duplicateSize = 0
     const scanFileIds: string[] = []
     const scanRecordId = generateId()
+    const categoryId = 'daily'
 
     const filesWithTag = files.map((file) => {
       let familyTag: MediaFile['familyTag'] = 'daily'
@@ -143,7 +148,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       }
     })
 
-    const dailyCat = categories.find((c) => c.id === 'daily')
+    const dailyCat = categories.find((c) => c.id === categoryId)
     if (dailyCat) {
       dailyCat.totalCount += filesWithTag.length
       dailyCat.totalSize += summary.totalSize
@@ -159,8 +164,6 @@ export const useAppStore = create<AppState>((set, get) => ({
       }
     })
 
-    set({ categories, cloudHashPool: newPool })
-
     get().addScanRecord({
       id: scanRecordId,
       source: summary.source,
@@ -171,8 +174,17 @@ export const useAppStore = create<AppState>((set, get) => ({
       duplicateSize,
       scanTime: Date.now(),
       fileIds: scanFileIds,
-      categoryId: 'daily'
+      categoryId
     })
+
+    set({ 
+      categories, 
+      cloudHashPool: newPool,
+      lastScanRecordId: scanRecordId,
+      lastScanCategoryId: categoryId
+    })
+
+    return { scanRecordId, categoryId }
   },
 
   transferFiles: (albumId, fileIds, albumName) => {
