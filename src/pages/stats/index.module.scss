@@ -205,3 +205,35 @@
   font-size: $font-size-md;
   color: $color-text-tertiary;
 }
+
+.scanStatsSection {
+  padding: 0 $page-padding;
+  margin-bottom: $spacing-md;
+}
+
+.scanStatsGrid {
+  display: flex;
+  gap: $spacing-md;
+}
+
+.scanStatCard {
+  flex: 1;
+  background: $color-bg-card;
+  border-radius: $radius-lg;
+  padding: $spacing-md;
+  box-shadow: $shadow-card;
+  text-align: center;
+}
+
+.scanStatValue {
+  font-size: $font-size-xl;
+  font-weight: $font-weight-bold;
+  color: $color-primary;
+  display: block;
+  margin-bottom: 4rpx;
+}
+
+.scanStatLabel {
+  font-size: $font-size-xs;
+  color: $color-text-tertiary;
+}

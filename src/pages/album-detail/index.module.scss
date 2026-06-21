@@ -359,3 +359,113 @@
   font-size: $font-size-md;
   color: $color-text-tertiary;
 }
+
+.filterSection {
+  background: $color-bg-card;
+  padding: $spacing-md $page-padding;
+  margin-bottom: $spacing-md;
+}
+
+.filterRow {
+  display: flex;
+  align-items: center;
+  margin-bottom: $spacing-md;
+
+  &:last-child {
+    margin-bottom: 0;
+  }
+}
+
+.filterLabel {
+  font-size: $font-size-sm;
+  color: $color-text-secondary;
+  flex-shrink: 0;
+  margin-right: $spacing-md;
+}
+
+.filterScroll {
+  flex: 1;
+  white-space: nowrap;
+}
+
+.filterOptions {
+  display: flex;
+  gap: $spacing-sm;
+  flex-wrap: nowrap;
+}
+
+.filterChip {
+  display: flex;
+  align-items: center;
+  padding: $spacing-xs $spacing-md;
+  background: $color-bg-page;
+  border-radius: $radius-round;
+  border: 2rpx solid transparent;
+  transition: all $transition-base;
+  flex-shrink: 0;
+
+  &.active {
+    background: $color-primary-bg;
+    border-color: $color-primary;
+  }
+
+  &.smallChip {
+    padding: $spacing-xs $spacing-sm;
+  }
+}
+
+.filterIcon {
+  font-size: $font-size-md;
+  margin-right: 4rpx;
+}
+
+.filterText {
+  font-size: $font-size-sm;
+  color: $color-text-secondary;
+
+  .active & {
+    color: $color-primary;
+    font-weight: $font-weight-medium;
+  }
+}
+
+.filterHint {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: $spacing-md;
+  padding: $spacing-sm $spacing-md;
+  background: $color-info-bg;
+  border-radius: $radius-md;
+}
+
+.filterHintText {
+  font-size: $font-size-sm;
+  color: $color-info;
+}
+
+.filterClear {
+  font-size: $font-size-sm;
+  color: $color-primary;
+  font-weight: $font-weight-medium;
+}
+
+.filterBadge {
+  margin-left: $spacing-sm;
+  background: $color-primary-bg;
+  color: $color-primary;
+  padding: 4rpx 12rpx;
+  border-radius: $radius-round;
+  font-size: $font-size-xs;
+  font-weight: $font-weight-medium;
+}
+
+.fileTag {
+  margin-top: 8rpx;
+  font-size: $font-size-xs;
+  color: $color-text-tertiary;
+  background: $color-bg-page;
+  padding: 4rpx 12rpx;
+  border-radius: $radius-round;
+  display: inline-block;
+}

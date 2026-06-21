@@ -9,6 +9,8 @@ export interface MediaFile {
   duration?: number
   status?: 'normal' | 'transferred' | 'deleted'
   targetAlbum?: string
+  familyTag?: 'baby' | 'elderly' | 'travel' | 'certificate' | 'daily' | 'unknown'
+  scanRecordId?: string
 }
 
 export interface AlbumCategory {
@@ -23,6 +25,19 @@ export interface AlbumCategory {
   duplicateSize: number
   files: MediaFile[]
   cloudFiles: MediaFile[]
+}
+
+export interface ScanRecord {
+  id: string
+  source: 'album' | 'wechat' | 'all'
+  sourceName: string
+  totalCount: number
+  totalSize: number
+  duplicateCount: number
+  duplicateSize: number
+  scanTime: number
+  fileIds: string[]
+  categoryId: string
 }
 
 export interface ScanResult {
@@ -50,6 +65,10 @@ export interface SaveStats {
   todaySavedSize: number
   todayTransferCount: number
   records: TransferRecord[]
+  scanRecords: ScanRecord[]
 }
 
 export type ScanStatus = 'idle' | 'scanning' | 'completed'
+
+export type FamilyFilter = 'all' | 'baby' | 'elderly' | 'travel' | 'certificate' | 'daily'
+export type TimeFilter = 'all' | 'year' | 'month' | 'week'

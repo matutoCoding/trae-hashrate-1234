@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { AlbumCategory, MediaFile, SaveStats, TransferRecord, ScanStatus } from '../types'
+import { AlbumCategory, MediaFile, SaveStats, TransferRecord, ScanStatus, ScanRecord } from '../types'
 import { mockAlbumCategories, mockSaveStats } from '../data/mock'
 import { generateId } from '../utils/format'
 
@@ -9,11 +9,14 @@ interface AppState {
   stats: SaveStats
   selectedFileIds: string[]
   currentCategoryId: string | null
+  cloudHashPool: Map<string, MediaFile>
 
   setScanStatus: (status: ScanStatus) => void
   setCategories: (categories: AlbumCategory[]) => void
   setStats: (stats: SaveStats) => void
   setCurrentCategoryId: (id: string | null) => void
+  initCloudHashPool: () => void
+  getCloudHashMatch: (hash: string) => MediaFile | undefined
 
   toggleFileSelection: (fileId: string) => void
   selectAllFiles: (fileIds: string[]) => void
@@ -22,6 +25,8 @@ interface AppState {
   addScannedFiles: (files: MediaFile[], source: {
     totalCount: number
     totalSize: number
+    source: 'album' | 'wechat' | 'all'
+    sourceName: string
   }) => void
   transferFiles: (
     albumId: string,
@@ -30,6 +35,7 @@ interface AppState {
   ) => {
     savedSize: number
     count: number
+    fileNames: string[]
   }
   deleteLocalFiles: (
     albumId: string,
@@ -39,7 +45,20 @@ interface AppState {
     count: number
   }
   addTransferRecord: (record: TransferRecord) => void
+  addScanRecord: (record: ScanRecord) => void
   resetAll: () => void
+}
+
+function buildCloudHashPool(categories: AlbumCategory[]): Map<string, MediaFile> {
+  const pool = new Map<string, MediaFile>()
+  categories.forEach((cat) => {
+    cat.cloudFiles.forEach((f) => {
+      if (!pool.has(f.hash)) {
+        pool.set(f.hash, f)
+      }
+    })
+  })
+  return pool
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -48,11 +67,21 @@ export const useAppStore = create<AppState>((set, get) => ({
   stats: mockSaveStats,
   selectedFileIds: [],
   currentCategoryId: null,
+  cloudHashPool: buildCloudHashPool(mockAlbumCategories),
 
   setScanStatus: (status) => set({ scanStatus: status }),
-  setCategories: (categories) => set({ categories }),
+  setCategories: (categories) => set({ categories, cloudHashPool: buildCloudHashPool(categories) }),
   setStats: (stats) => set({ stats }),
   setCurrentCategoryId: (id) => set({ currentCategoryId: id }),
+
+  initCloudHashPool: () => {
+    const categories = get().categories
+    set({ cloudHashPool: buildCloudHashPool(categories) })
+  },
+
+  getCloudHashMatch: (hash) => {
+    return get().cloudHashPool.get(hash)
+  },
 
   toggleFileSelection: (fileId) =>
     set((state) => ({
@@ -81,40 +110,69 @@ export const useAppStore = create<AppState>((set, get) => ({
   addScannedFiles: (files, summary) => {
     console.log('[Store] 添加扫描文件', files.length, summary)
     
-    const categories = get().categories.map((cat) => ({ ...cat }))
-    
-    const imageFiles = files.filter((f) => f.type === 'image')
-    const videoFiles = files.filter((f) => f.type === 'video')
-    
-    const cloudHashSet = new Set<string>()
-    categories.forEach((cat) => {
-      cat.cloudFiles.forEach((f) => cloudHashSet.add(f.hash))
-    })
+    const categories = get().categories.map((cat) => ({ ...cat, files: [...cat.files] }))
+    const cloudHashPool = get().cloudHashPool
 
     let duplicateCount = 0
     let duplicateSize = 0
-    const newFiles: MediaFile[] = []
+    const scanFileIds: string[] = []
+    const scanRecordId = generateId()
 
-    files.forEach((file) => {
-      if (cloudHashSet.has(file.hash)) {
+    const filesWithTag = files.map((file) => {
+      let familyTag: MediaFile['familyTag'] = 'daily'
+      const cloudMatch = cloudHashPool.get(file.hash)
+      if (cloudMatch?.familyTag) {
+        familyTag = cloudMatch.familyTag
+      } else if (file.name.includes('宝宝') || file.name.includes('baby') || file.name.includes('BABY')) {
+        familyTag = 'baby'
+      } else if (file.name.includes('爷爷') || file.name.includes('奶奶') || file.name.includes('老人')) {
+        familyTag = 'elderly'
+      } else if (file.name.includes('旅游') || file.name.includes('三亚') || file.name.includes('西湖') || file.name.includes('海边')) {
+        familyTag = 'travel'
+      } else if (file.name.includes('身份证') || file.name.includes('户口') || file.name.includes('结婚') || file.name.includes('证件')) {
+        familyTag = 'certificate'
+      }
+      return { ...file, familyTag, scanRecordId }
+    })
+
+    filesWithTag.forEach((file) => {
+      scanFileIds.push(file.id)
+      if (cloudHashPool.has(file.hash)) {
         duplicateCount++
         duplicateSize += file.size
-        newFiles.push(file)
-      } else {
-        newFiles.push(file)
       }
     })
 
     const dailyCat = categories.find((c) => c.id === 'daily')
     if (dailyCat) {
-      dailyCat.totalCount += files.length
+      dailyCat.totalCount += filesWithTag.length
       dailyCat.totalSize += summary.totalSize
       dailyCat.duplicateCount += duplicateCount
       dailyCat.duplicateSize += duplicateSize
-      dailyCat.files = [...dailyCat.files, ...newFiles]
+      dailyCat.files = [...dailyCat.files, ...filesWithTag]
     }
 
-    set({ categories })
+    const newPool = new Map(cloudHashPool)
+    filesWithTag.forEach((f) => {
+      if (!newPool.has(f.hash)) {
+        newPool.set(f.hash, f)
+      }
+    })
+
+    set({ categories, cloudHashPool: newPool })
+
+    get().addScanRecord({
+      id: scanRecordId,
+      source: summary.source,
+      sourceName: summary.sourceName,
+      totalCount: filesWithTag.length,
+      totalSize: summary.totalSize,
+      duplicateCount,
+      duplicateSize,
+      scanTime: Date.now(),
+      fileIds: scanFileIds,
+      categoryId: 'daily'
+    })
   },
 
   transferFiles: (albumId, fileIds, albumName) => {
@@ -122,7 +180,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     const state = get()
     const categories = state.categories.map((c) => ({ ...c, files: [...c.files] }))
     const category = categories.find((c) => c.id === albumId)
-    if (!category) return { savedSize: 0, count: 0 }
+    if (!category) return { savedSize: 0, count: 0, fileNames: [] }
 
     const selectedFiles = category.files.filter((f) => fileIds.includes(f.id))
     const savedSize = selectedFiles.reduce((sum, f) => sum + f.size, 0)
@@ -162,7 +220,9 @@ export const useAppStore = create<AppState>((set, get) => ({
       (id) => !fileIds.includes(id)
     )
 
-    set({ categories, stats: newStats, selectedFileIds: remainingSelected })
+    const newPool = buildCloudHashPool(categories)
+
+    set({ categories, stats: newStats, selectedFileIds: remainingSelected, cloudHashPool: newPool })
 
     return { savedSize, count, fileNames: selectedFiles.map((f) => f.name) }
   },
@@ -199,7 +259,9 @@ export const useAppStore = create<AppState>((set, get) => ({
       (id) => !fileIds.includes(id)
     )
 
-    set({ categories, selectedFileIds: remainingSelected })
+    const newPool = buildCloudHashPool(categories)
+
+    set({ categories, selectedFileIds: remainingSelected, cloudHashPool: newPool })
 
     return { freedSize, count }
   },
@@ -209,6 +271,17 @@ export const useAppStore = create<AppState>((set, get) => ({
       stats: {
         ...state.stats,
         records: [record, ...state.stats.records]
+      }
+    })),
+
+  addScanRecord: (record) =>
+    set((state) => ({
+      stats: {
+        ...state.stats,
+        scanRecords: [
+          { ...record },
+          ...state.stats.scanRecords.slice(0, 19)
+        ]
       }
     })),
 

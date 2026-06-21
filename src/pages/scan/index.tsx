@@ -1,11 +1,11 @@
-import React, { useState, useCallback } from 'react'
+import React, { useState, useCallback, useEffect } from 'react'
 import { View, Text, ScrollView } from '@tarojs/components'
 import Taro, { useDidShow } from '@tarojs/taro'
 import styles from './index.module.scss'
 import BigButton from '../../components/BigButton'
 import ProgressBar from '../../components/ProgressBar'
-import { formatFileSize } from '../../utils/format'
-import { ScanStatus, MediaFile } from '../../types'
+import { formatFileSize, formatTime } from '../../utils/format'
+import { ScanStatus, MediaFile, ScanRecord } from '../../types'
 import { useAppStore } from '../../store'
 import { generateId } from '../../utils/format'
 
@@ -20,29 +20,48 @@ const ScanPage: React.FC = () => {
   const [duplicateSize, setDuplicateSize] = useState(0)
   const [totalSize, setTotalSize] = useState(0)
   const [scannedFiles, setScannedFiles] = useState<MediaFile[]>([])
+  const [isWechatEnv, setIsWechatEnv] = useState(false)
+  const [showRecords, setShowRecords] = useState(false)
 
   const scanStatus = useAppStore((state) => state.scanStatus)
   const setScanStatus = useAppStore((state) => state.setScanStatus)
   const addScannedFiles = useAppStore((state) => state.addScannedFiles)
+  const getCloudHashMatch = useAppStore((state) => state.getCloudHashMatch)
+  const cloudHashPool = useAppStore((state) => state.cloudHashPool)
+  const scanRecords = useAppStore((state) => state.stats.scanRecords)
+
+  useEffect(() => {
+    try {
+      const sysInfo = Taro.getSystemInfoSync()
+      const env = (sysInfo as any)?.envs || {}
+      setIsWechatEnv(!!env.wx)
+      console.log('[Scan] 运行环境:', sysInfo.platform, '微信环境:', !!env.wx)
+    } catch (e) {
+      console.log('[Scan] 获取系统信息失败', e)
+    }
+  }, [])
 
   const sourceOptions = [
     {
       key: 'album' as SourceType,
       icon: '📷',
       name: '手机相册',
-      desc: '扫描相机拍摄的照片和视频'
+      desc: '扫描相机拍摄的照片和视频',
+      envTip: ''
     },
     {
       key: 'wechat' as SourceType,
       icon: '💬',
       name: '聊天下载目录',
-      desc: '扫描微信/QQ保存的图片'
+      desc: isWechatEnv ? '从微信聊天中选择文件' : '扫描微信/QQ保存的图片',
+      envTip: isWechatEnv ? '推荐' : ''
     },
     {
       key: 'all' as SourceType,
       icon: '📁',
       name: '全部图片视频',
-      desc: '扫描所有相册和目录'
+      desc: '扫描所有相册和目录',
+      envTip: ''
     }
   ]
 
@@ -57,6 +76,33 @@ const ScanPage: React.FC = () => {
     return 'hash_' + Math.abs(hash).toString(16)
   }
 
+  const chooseWechatFiles = useCallback(async (): Promise<any[] | null> => {
+    console.log('[Scan] 尝试选择微信聊天文件')
+    const win = window as any
+    if (win.wx && win.wx.chooseMessageFile) {
+      return new Promise((resolve) => {
+        try {
+          win.wx.chooseMessageFile({
+            count: 50,
+            type: 'all',
+            success: (res: any) => {
+              console.log('[Scan] 微信 chooseMessageFile 成功:', res.tempFiles?.length)
+              resolve(res.tempFiles || [])
+            },
+            fail: (err: any) => {
+              console.log('[Scan] 微信 chooseMessageFile 失败:', err)
+              resolve(null)
+            }
+          })
+        } catch (e) {
+          console.log('[Scan] 微信 chooseMessageFile 异常:', e)
+          resolve(null)
+        }
+      })
+    }
+    return null
+  }, [])
+
   const chooseFiles = useCallback(async () => {
     try {
       let files: any[] = []
@@ -70,60 +116,73 @@ const ScanPage: React.FC = () => {
           title: `请选择${sourceName}...`,
           mask: true
         })
-      }
 
-      let mediaType: any[]
-      let chooseCount: number
-
-      if (selectedSource === 'wechat') {
-        mediaType = ['image', 'video']
-        chooseCount = 50
-      } else if (selectedSource === 'album') {
-        mediaType = ['image', 'video']
-        chooseCount = 50
-      } else {
-        mediaType = ['image', 'video']
-        chooseCount = 50
-      }
-
-      try {
-        const result = await Taro.chooseMedia({
-          count: chooseCount,
-          mediaType: mediaType as any,
-          sourceType: ['album'],
-          sizeType: ['original'],
-          camera: 'back'
-        })
-        if (selectedSource === 'wechat') {
-          Taro.hideLoading()
-        }
-        if (result.tempFiles) {
-          files = result.tempFiles as any[]
-        }
-      } catch (chooseErr) {
-        if (selectedSource === 'wechat') {
-          Taro.hideLoading()
-        }
-        console.log('[Scan] chooseMedia 失败，降级使用 chooseImage:', chooseErr)
-        try {
-          const imgResult = await Taro.chooseImage({
-            count: chooseCount,
-            sizeType: ['original', 'compressed'],
-            sourceType: ['album']
-          })
-          if (imgResult.tempFilePaths) {
-            files = imgResult.tempFilePaths.map((path: string, idx: number) => ({
-              tempFilePath: path,
-              size: 1024 * 1024 * (1 + idx % 5),
-              fileType: 'image',
-              duration: 0
+        if (isWechatEnv) {
+          const wechatFiles = await chooseWechatFiles()
+          if (wechatFiles && wechatFiles.length > 0) {
+            files = wechatFiles.map((f: any) => ({
+              tempFilePath: f.path || f.tempFilePath,
+              size: f.size,
+              fileType: f.type === 'video' ? 'video' : 'image',
+              duration: f.duration || 0,
+              name: f.name || ''
             }))
           }
-        } catch (imgErr) {
-          console.error('[Scan] 选择文件失败:', imgErr)
-          Taro.showToast({ title: '选择文件失败', icon: 'none' })
-          return null
         }
+      }
+
+      if (files.length === 0) {
+        let mediaType: any[]
+        let chooseCount: number
+
+        if (selectedSource === 'wechat') {
+          mediaType = ['image', 'video']
+          chooseCount = 50
+        } else if (selectedSource === 'album') {
+          mediaType = ['image', 'video']
+          chooseCount = 50
+        } else {
+          mediaType = ['image', 'video']
+          chooseCount = 50
+        }
+
+        try {
+          const result = await Taro.chooseMedia({
+            count: chooseCount,
+            mediaType: mediaType as any,
+            sourceType: ['album'],
+            sizeType: ['original'],
+            camera: 'back'
+          })
+          if (result.tempFiles) {
+            files = result.tempFiles as any[]
+          }
+        } catch (chooseErr) {
+          console.log('[Scan] chooseMedia 失败，降级使用 chooseImage:', chooseErr)
+          try {
+            const imgResult = await Taro.chooseImage({
+              count: chooseCount,
+              sizeType: ['original', 'compressed'],
+              sourceType: ['album']
+            })
+            if (imgResult.tempFilePaths) {
+              files = imgResult.tempFilePaths.map((path: string, idx: number) => ({
+                tempFilePath: path,
+                size: 1024 * 1024 * (1 + idx % 5),
+                fileType: 'image',
+                duration: 0
+              }))
+            }
+          } catch (imgErr) {
+            console.error('[Scan] 选择文件失败:', imgErr)
+            Taro.showToast({ title: '选择文件失败', icon: 'none' })
+            return null
+          }
+        }
+      }
+
+      if (selectedSource === 'wechat') {
+        Taro.hideLoading()
       }
 
       if (!files || files.length === 0) {
@@ -152,11 +211,15 @@ const ScanPage: React.FC = () => {
         const namePrefix = selectedSource === 'wechat' && fileType === 'video' ? 'WECHAT_VID' :
           fileType === 'video' ? 'VID' : prefix
 
+        const originalName = f.name || ''
+
         return {
           id: generateId(),
-          name: fileType === 'video'
-            ? `${namePrefix}_${new Date(createTime).toISOString().slice(0, 10).replace(/-/g, '')}_${index + 1}.mp4`
-            : `${namePrefix}_${new Date(createTime).toISOString().slice(0, 10).replace(/-/g, '')}_${index + 1}.jpg`,
+          name: originalName && originalName.length > 0
+            ? originalName
+            : (fileType === 'video'
+              ? `${namePrefix}_${new Date(createTime).toISOString().slice(0, 10).replace(/-/g, '')}_${index + 1}.mp4`
+              : `${namePrefix}_${new Date(createTime).toISOString().slice(0, 10).replace(/-/g, '')}_${index + 1}.jpg`),
           size: fileSize,
           type: fileType,
           hash,
@@ -175,12 +238,12 @@ const ScanPage: React.FC = () => {
       Taro.showToast({ title: '选择文件出错', icon: 'none' })
       return null
     }
-  }, [selectedSource])
+  }, [selectedSource, isWechatEnv, chooseWechatFiles])
 
   const handleStartScan = async () => {
     if (scanStatus === 'scanning') return
 
-    console.log('[Scan] 开始扫描')
+    console.log('[Scan] 开始扫描，来源:', selectedSource)
     setScanStatus('scanning')
     setScanProgress(0)
     setScannedCount(0)
@@ -199,13 +262,7 @@ const ScanPage: React.FC = () => {
     setTotalFiles(total)
     setTotalSize(totalSizeValue)
 
-    const cloudHashes = new Set<string>()
-    const categories = useAppStore.getState().categories
-    categories.forEach((cat) => {
-      cat.cloudFiles.forEach((f) => cloudHashes.add(f.hash))
-      cat.files.forEach((f) => cloudHashes.add(f.hash))
-    })
-
+    const pool = cloudHashPool
     let dupCount = 0
     let dupSize = 0
 
@@ -213,7 +270,8 @@ const ScanPage: React.FC = () => {
       await new Promise((resolve) => setTimeout(resolve, 30))
 
       const file = files[i]
-      if (cloudHashes.has(file.hash)) {
+      const cloudMatch = getCloudHashMatch(file.hash)
+      if (cloudMatch) {
         dupCount++
         dupSize += file.size
       }
@@ -226,9 +284,15 @@ const ScanPage: React.FC = () => {
 
     setScannedFiles(files)
 
+    const sourceName =
+      selectedSource === 'album' ? '手机相册' :
+      selectedSource === 'wechat' ? '聊天下载目录' : '全部图片视频'
+
     addScannedFiles(files, {
       totalCount: total,
-      totalSize: totalSizeValue
+      totalSize: totalSizeValue,
+      source: selectedSource,
+      sourceName
     })
 
     setScanStatus('completed')
@@ -267,9 +331,18 @@ const ScanPage: React.FC = () => {
     setScannedFiles([])
   }
 
+  const handleRecordClick = (record: ScanRecord) => {
+    console.log('[Scan] 点击扫描记录:', record.id, record.categoryId)
+    Taro.navigateTo({
+      url: `/pages/album-detail/index?id=${record.categoryId}&scanRecordId=${record.id}`
+    })
+  }
+
   useDidShow(() => {
     console.log('[Scan] 页面显示')
   })
+
+  const displayRecords = scanRecords.slice(0, 5)
 
   return (
     <ScrollView className={styles.page} scrollY enhanced showScrollbar={false}>
@@ -293,7 +366,12 @@ const ScanPage: React.FC = () => {
                     <Text>{option.icon}</Text>
                   </View>
                   <View className={styles.sourceInfo}>
-                    <Text className={styles.sourceName}>{option.name}</Text>
+                    <View className={styles.sourceNameRow}>
+                      <Text className={styles.sourceName}>{option.name}</Text>
+                      {option.envTip && (
+                        <Text className={styles.sourceTag}>{option.envTip}</Text>
+                      )}
+                    </View>
                     <Text className={styles.sourceDesc}>{option.desc}</Text>
                   </View>
                   <View className={`${styles.sourceCheck} ${selectedSource === option.key ? styles.checked : ''}`}>
@@ -314,6 +392,51 @@ const ScanPage: React.FC = () => {
                 onClick={handleStartScan}
               />
             </View>
+
+            {displayRecords.length > 0 && (
+              <View className={styles.recordsSection}>
+                <View className={styles.recordsHeader}>
+                  <Text className={styles.sectionTitle}>最近扫描记录</Text>
+                  <Text
+                    className={styles.recordsMore}
+                    onClick={() => setShowRecords(!showRecords)}
+                  >
+                    {showRecords ? '收起' : '查看全部'}
+                  </Text>
+                </View>
+                <View className={styles.recordsList}>
+                  {(showRecords ? scanRecords : displayRecords).map((record) => (
+                    <View
+                      key={record.id}
+                      className={styles.recordItem}
+                      onClick={() => handleRecordClick(record)}
+                    >
+                      <View className={styles.recordIcon}>
+                        <Text>
+                          {record.source === 'wechat' ? '💬' : record.source === 'album' ? '📷' : '📁'}
+                        </Text>
+                      </View>
+                      <View className={styles.recordInfo}>
+                        <Text className={styles.recordTitle}>{record.sourceName}</Text>
+                        <View className={styles.recordMeta}>
+                          <Text className={styles.recordCount}>
+                            {record.totalCount}个文件 · 发现{record.duplicateCount}个重复
+                          </Text>
+                          <Text className={styles.recordTime}>
+                            {formatTime(record.scanTime)}
+                          </Text>
+                        </View>
+                      </View>
+                      <View className={styles.recordAction}>
+                        <Text className={styles.recordSize}>
+                          省 {formatFileSize(record.duplicateSize)}
+                        </Text>
+                      </View>
+                    </View>
+                  ))}
+                </View>
+              </View>
+            )}
           </View>
         )}
 
