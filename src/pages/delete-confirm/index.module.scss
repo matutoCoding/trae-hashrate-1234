@@ -99,10 +99,20 @@
   color: $color-info;
   line-height: 1.6;
   flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4rpx;
 }
 
-.cloudText strong {
+.cloudTextTitle {
   font-weight: $font-weight-semibold;
+  font-size: $font-size-sm;
+  color: $color-info;
+}
+
+.cloudTextLine {
+  font-size: $font-size-sm;
+  color: $color-info;
 }
 
 .safeSection {
@@ -125,10 +135,24 @@
   color: $color-success;
   line-height: 1.6;
   flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4rpx;
 }
 
-.safeText strong {
+.safeTextTitle {
   font-weight: $font-weight-semibold;
+  font-size: $font-size-sm;
+  color: $color-success;
+}
+
+.safeTextLine {
+  font-size: $font-size-sm;
+  color: $color-success;
+}
+
+.successText {
+  color: $color-success;
 }
 
 .checkSection {
@@ -259,6 +283,9 @@
   color: $color-text-secondary;
   margin-bottom: $spacing-lg;
   line-height: 1.5;
+  display: flex;
+  flex-direction: column;
+  gap: 4rpx;
 }
 
 .saveInfo {

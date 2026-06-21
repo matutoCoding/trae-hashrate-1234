@@ -1,38 +1,113 @@
-import React, { useState } from 'react'
+import React, { useState, useMemo } from 'react'
 import { View, Text } from '@tarojs/components'
 import Taro, { useRouter } from '@tarojs/taro'
 import styles from './index.module.scss'
 import BigButton from '../../components/BigButton'
-import { mockAlbumCategories } from '../../data/mock'
+import { useAppStore } from '../../store'
+import { AlbumCategory } from '../../types'
 import { formatFileSize } from '../../utils/format'
 
 const TransferConfirmPage: React.FC = () => {
   const router = useRouter()
-  const categoryId = router.params.categoryId || 'all'
+  const albumId = router.params.albumId || 'baby'
+  const albumNameParam = router.params.albumName
+    ? decodeURIComponent(router.params.albumName)
+    : '宝宝成长'
   const countParam = parseInt(router.params.count || '0', 10) || 0
-  const [selectedAlbum, setSelectedAlbum] = useState<string>(categoryId === 'all' ? 'baby' : categoryId)
+
+  const [selectedAlbum, setSelectedAlbum] = useState<string>(albumId)
   const [showSuccess, setShowSuccess] = useState(false)
+  const [resultInfo, setResultInfo] = useState({
+    count: 0,
+    savedSize: 0,
+    albumName: ''
+  })
 
-  const categories = mockAlbumCategories
-  const selectedCategory = categories.find(c => c.id === selectedAlbum)
+  const categories = useAppStore((state) => state.categories)
+  const selectedFileIds = useAppStore((state) => state.selectedFileIds)
+  const transferFiles = useAppStore((state) => state.transferFiles)
+  const clearSelection = useAppStore((state) => state.clearSelection)
 
-  const fileCount = countParam > 0 ? countParam : (selectedCategory?.duplicateCount || 0)
-  const savedSize = selectedCategory?.duplicateSize || 183500800
+  const currentCategory = useMemo(
+    () => categories.find((c: AlbumCategory) => c.id === albumId),
+    [categories, albumId]
+  )
+
+  const selectedCategory = useMemo(
+    () => categories.find((c: AlbumCategory) => c.id === selectedAlbum),
+    [categories, selectedAlbum]
+  )
+
+  const fileCount = useMemo(() => {
+    if (countParam > 0) return countParam
+    if (!currentCategory) return 0
+    return currentCategory.files.filter((f) => selectedFileIds.includes(f.id)).length
+  }, [countParam, currentCategory, selectedFileIds])
+
+  const savedSize = useMemo(() => {
+    if (!currentCategory) return 0
+    const selectedFiles = currentCategory.files.filter((f) =>
+      selectedFileIds.includes(f.id)
+    )
+    if (selectedFiles.length > 0) {
+      return selectedFiles.reduce((sum, f) => sum + f.size, 0)
+    }
+    return currentCategory.duplicateSize
+  }, [currentCategory, selectedFileIds])
 
   const handleConfirmTransfer = () => {
-    setShowSuccess(true)
-  }
+    const fileIdsToTransfer = currentCategory
+      ? currentCategory.files
+          .filter((f) => selectedFileIds.includes(f.id))
+          .map((f) => f.id)
+      : []
 
-  const handleBackToAlbum = () => {
-    Taro.switchTab({
-      url: '/pages/album/index'
+    const result = transferFiles(
+      selectedAlbum,
+      fileIdsToTransfer.length > 0 ? fileIdsToTransfer : [],
+      selectedCategory?.name || albumNameParam
+    )
+
+    const actualCount = result.count > 0 ? result.count : fileCount
+    const actualSaved = result.savedSize > 0 ? result.savedSize : savedSize
+
+    setResultInfo({
+      count: actualCount,
+      savedSize: actualSaved,
+      albumName: selectedCategory?.name || albumNameParam
     })
+
+    clearSelection()
+
+    Taro.showToast({
+      title: '秒传成功',
+      icon: 'success',
+      duration: 1000
+    })
+
+    setTimeout(() => {
+      setShowSuccess(true)
+    }, 500)
   }
 
   const handleGoToStats = () => {
-    Taro.switchTab({
-      url: '/pages/stats/index'
-    })
+    setShowSuccess(false)
+    setTimeout(() => {
+      Taro.switchTab({
+        url: '/pages/stats/index'
+      })
+    }, 100)
+  }
+
+  const handleBackToAlbum = () => {
+    setShowSuccess(false)
+    setTimeout(() => {
+      Taro.navigateBack()
+    }, 100)
+  }
+
+  const handleCloseSuccess = () => {
+    setShowSuccess(false)
   }
 
   return (
@@ -40,7 +115,9 @@ const TransferConfirmPage: React.FC = () => {
       <View className={styles.header}>
         <Text className={styles.headerIcon}>⚡</Text>
         <Text className={styles.headerTitle}>省流量秒传</Text>
-        <Text className={styles.headerSubtitle}>云端已有，直接创建，无需重新上传</Text>
+        <Text className={styles.headerSubtitle}>
+          云端已有，直接创建，无需重新上传
+        </Text>
       </View>
 
       <View className={styles.saveSection}>
@@ -53,9 +130,7 @@ const TransferConfirmPage: React.FC = () => {
               <Text className={styles.saveDetailLabel}>秒传文件</Text>
             </View>
             <View className={styles.saveDetailItem}>
-              <Text className={styles.saveDetailValue}>
-                0秒
-              </Text>
+              <Text className={styles.saveDetailValue}>0秒</Text>
               <Text className={styles.saveDetailLabel}>预计用时</Text>
             </View>
             <View className={styles.saveDetailItem}>
@@ -71,10 +146,12 @@ const TransferConfirmPage: React.FC = () => {
           <Text className={styles.sectionTitle}>选择目标家庭相册</Text>
         </View>
         <View className={styles.albumList}>
-          {categories.map(cat => (
+          {categories.map((cat: AlbumCategory) => (
             <View
               key={cat.id}
-              className={`${styles.albumOption} ${selectedAlbum === cat.id ? styles.selected : ''}`}
+              className={`${styles.albumOption} ${
+                selectedAlbum === cat.id ? styles.selected : ''
+              }`}
               onClick={() => setSelectedAlbum(cat.id)}
             >
               <View
@@ -102,13 +179,15 @@ const TransferConfirmPage: React.FC = () => {
       <View className={styles.tipSection}>
         <Text className={styles.tipIcon}>💡</Text>
         <Text className={styles.tipText}>
-          秒传只是在家庭相册中创建文件引用，不会重复利用云端已有的文件，不占用额外存储空间，全家都能看到。
+          秒传只是在家庭相册中创建文件引用，不会重复占用云端存储空间，全家都能看到这些文件。
         </Text>
       </View>
 
       <View className={styles.bottomBar}>
         <View className={styles.bottomInfo}>
-          <Text className={styles.bottomLabel}>共 {fileCount} 个文件，秒传至 {selectedCategory?.name || '家庭相册'}</Text>
+          <Text className={styles.bottomLabel}>
+            共 {fileCount} 个文件，秒传至 {selectedCategory?.name || '家庭相册'}
+          </Text>
           <Text className={styles.bottomValue}>
             省 {formatFileSize(savedSize)}
           </Text>
@@ -123,35 +202,42 @@ const TransferConfirmPage: React.FC = () => {
       </View>
 
       {showSuccess && (
-        <View className={styles.successModal}>
-          <View className={styles.successContent}>
+        <View className={styles.successModal} onClick={handleCloseSuccess}>
+          <View
+            className={styles.successContent}
+            onClick={(e) => {
+              e.stopPropagation?.()
+            }}
+          >
             <View className={styles.successIcon}>
-            <Text>✅</Text>
-          </View>
-          <Text className={styles.successTitle}>秒传成功！</Text>
-          <Text className={styles.successDesc}>
-            已将 {fileCount} 个文件创建到
-            家庭相册
-          </Text>
-          <View className={styles.successSave}>
-            <Text className={styles.successSaveValue}>
-              {formatFileSize(savedSize)}
+              <Text>✅</Text>
+            </View>
+            <Text className={styles.successTitle}>秒传成功！</Text>
+            <Text className={styles.successDesc}>
+              已将 {resultInfo.count} 个文件创建到
+              {'\n'}
+              {resultInfo.albumName}
             </Text>
-            <Text className={styles.successSaveLabel}>节省流量</Text>
+            <View className={styles.successSave}>
+              <Text className={styles.successSaveValue}>
+                {formatFileSize(resultInfo.savedSize)}
+              </Text>
+              <Text className={styles.successSaveLabel}>节省流量</Text>
+            </View>
+            <View className={styles.successButton}>
+              <BigButton
+                text='查看秒传记录'
+                type='primary'
+                size='normal'
+                onClick={handleGoToStats}
+              />
+            </View>
+            <Text className={styles.successLink} onClick={handleBackToAlbum}>
+              返回相册详情
+            </Text>
           </View>
-          <View className={styles.successButton}>
-            <BigButton
-              text='查看秒传记录'
-              type='primary'
-              size='normal'
-              onClick={handleGoToStats}
-            />
-          </View>
-          <Text className={styles.successLink} onClick={handleBackToAlbum}>
-            返回相册列表
-          </Text>
         </View>
-      </View>
+      )}
     </View>
   )
 }

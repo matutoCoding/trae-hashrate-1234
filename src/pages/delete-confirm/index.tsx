@@ -1,21 +1,55 @@
-import React, { useState } from 'react'
+import React, { useState, useMemo } from 'react'
 import { View, Text } from '@tarojs/components'
 import Taro, { useRouter } from '@tarojs/taro'
 import styles from './index.module.scss'
 import BigButton from '../../components/BigButton'
+import { useAppStore } from '../../store'
+import { AlbumCategory } from '../../types'
 import { formatFileSize } from '../../utils/format'
 
 const DeleteConfirmPage: React.FC = () => {
   const router = useRouter()
-  const countParam = parseInt(router.params.count || '0', 10) || 3
-  const albumName = router.params.album || '宝宝成长'
-
-  const fileCount = countParam
-  const savedSize = Math.floor(183500800 * (fileCount / 45))
+  const albumId = router.params.albumId || 'baby'
+  const albumNameParam = router.params.albumName
+    ? decodeURIComponent(router.params.albumName)
+    : '宝宝成长'
+  const countParam = parseInt(router.params.count || '0', 10) || 0
 
   const [checked1, setChecked1] = useState(false)
   const [checked2, setChecked2] = useState(false)
   const [showSuccess, setShowSuccess] = useState(false)
+  const [resultInfo, setResultInfo] = useState({
+    count: 0,
+    freedSize: 0
+  })
+
+  const categories = useAppStore((state) => state.categories)
+  const selectedFileIds = useAppStore((state) => state.selectedFileIds)
+  const deleteLocalFiles = useAppStore((state) => state.deleteLocalFiles)
+  const clearSelection = useAppStore((state) => state.clearSelection)
+
+  const currentCategory = useMemo(
+    () => categories.find((c: AlbumCategory) => c.id === albumId),
+    [categories, albumId]
+  )
+
+  const fileCount = useMemo(() => {
+    if (countParam > 0) return countParam
+    if (!currentCategory) return 0
+    return currentCategory.files.filter((f) => selectedFileIds.includes(f.id))
+      .length
+  }, [countParam, currentCategory, selectedFileIds])
+
+  const savedSize = useMemo(() => {
+    if (!currentCategory) return 0
+    const selectedFiles = currentCategory.files.filter((f) =>
+      selectedFileIds.includes(f.id)
+    )
+    if (selectedFiles.length > 0) {
+      return selectedFiles.reduce((sum, f) => sum + f.size, 0)
+    }
+    return currentCategory.duplicateSize
+  }, [currentCategory, selectedFileIds])
 
   const canDelete = checked1 && checked2
 
@@ -27,7 +61,37 @@ const DeleteConfirmPage: React.FC = () => {
       })
       return
     }
-    setShowSuccess(true)
+
+    const fileIdsToDelete = currentCategory
+      ? currentCategory.files
+          .filter((f) => selectedFileIds.includes(f.id))
+          .map((f) => f.id)
+      : []
+
+    const result = deleteLocalFiles(
+      albumId,
+      fileIdsToDelete.length > 0 ? fileIdsToDelete : []
+    )
+
+    const actualCount = result.count > 0 ? result.count : fileCount
+    const actualFreed = result.freedSize > 0 ? result.freedSize : savedSize
+
+    setResultInfo({
+      count: actualCount,
+      freedSize: actualFreed
+    })
+
+    clearSelection()
+
+    Taro.showToast({
+      title: '删除成功',
+      icon: 'success',
+      duration: 1000
+    })
+
+    setTimeout(() => {
+      setShowSuccess(true)
+    }, 500)
   }
 
   const handleCancel = () => {
@@ -35,9 +99,23 @@ const DeleteConfirmPage: React.FC = () => {
   }
 
   const handleBackToAlbum = () => {
-    Taro.switchTab({
-      url: '/pages/album/index'
-    })
+    setShowSuccess(false)
+    setTimeout(() => {
+      Taro.navigateBack()
+    }, 100)
+  }
+
+  const handleBackToAlbumList = () => {
+    setShowSuccess(false)
+    setTimeout(() => {
+      Taro.switchTab({
+        url: '/pages/album/index'
+      })
+    }, 100)
+  }
+
+  const handleCloseSuccess = () => {
+    setShowSuccess(false)
   }
 
   return (
@@ -53,11 +131,15 @@ const DeleteConfirmPage: React.FC = () => {
       <View className={styles.infoSection}>
         <View className={styles.cloudInfo}>
           <Text className={styles.cloudIcon}>☁️</Text>
-          <Text className={styles.cloudText}>
-            <strong>云端保存位置：</strong>
-            {'\n'}家庭云盘 / 家庭相册 / {albumName}
-            {'\n'}这些文件云端已安全保存，全家共享
-          </Text>
+          <View className={styles.cloudText}>
+            <Text className={styles.cloudTextTitle}>云端保存位置：</Text>
+            <Text className={styles.cloudTextLine}>
+              家庭云盘 / 家庭相册 / {albumNameParam}
+            </Text>
+            <Text className={styles.cloudTextLine}>
+              这些文件云端已安全保存，全家共享
+            </Text>
+          </View>
         </View>
 
         <View className={styles.infoCard}>
@@ -68,29 +150,40 @@ const DeleteConfirmPage: React.FC = () => {
           </View>
           <View className={styles.infoItem}>
             <Text className={styles.infoLabel}>释放空间</Text>
-            <Text className={styles.infoValue} style={{ color: '#52c41a' }}>
+            <Text className={`${styles.infoValue} ${styles.successText}`}>
               {formatFileSize(savedSize)}
             </Text>
           </View>
           <View className={styles.infoItem}>
             <Text className={styles.infoLabel}>所在相册</Text>
-            <Text className={styles.infoValue}>{albumName}</Text>
+            <Text className={styles.infoValue}>{albumNameParam}</Text>
           </View>
         </View>
 
         <View className={styles.safeSection}>
           <Text className={styles.safeIcon}>🛡️</Text>
-          <Text className={styles.safeText}>
-            <strong>安心保障：</strong>
-            {'\n'}• 仅删除本机重复文件，云端文件不受影响
-            {'\n'}• 删除的文件会在"最近删除"保留30天
-            {'\n'}• 随时可以从云端重新下载
-          </Text>
+          <View className={styles.safeText}>
+            <Text className={styles.safeTextTitle}>安心保障：</Text>
+            <Text className={styles.safeTextLine}>
+              • 仅删除本机重复文件，云端文件不受影响
+            </Text>
+            <Text className={styles.safeTextLine}>
+              • 删除的文件会在"最近删除"保留30天
+            </Text>
+            <Text className={styles.safeTextLine}>
+              • 随时可以从云端重新下载
+            </Text>
+          </View>
         </View>
 
         <View className={styles.checkSection}>
-          <View className={styles.checkItem} onClick={() => setChecked1(!checked1)}>
-            <View className={`${styles.checkBox} ${checked1 ? styles.checked : ''}`}>
+          <View
+            className={styles.checkItem}
+            onClick={() => setChecked1(!checked1)}
+          >
+            <View
+              className={`${styles.checkBox} ${checked1 ? styles.checked : ''}`}
+            >
               {checked1 && <Text className={styles.checkIcon}>✓</Text>}
             </View>
             <View className={styles.checkContent}>
@@ -103,8 +196,13 @@ const DeleteConfirmPage: React.FC = () => {
             </View>
           </View>
 
-          <View className={styles.checkItem} onClick={() => setChecked2(!checked2)}>
-            <View className={`${styles.checkBox} ${checked2 ? styles.checked : ''}`}>
+          <View
+            className={styles.checkItem}
+            onClick={() => setChecked2(!checked2)}
+          >
+            <View
+              className={`${styles.checkBox} ${checked2 ? styles.checked : ''}`}
+            >
               {checked2 && <Text className={styles.checkIcon}>✓</Text>}
             </View>
             <View className={styles.checkContent}>
@@ -141,32 +239,37 @@ const DeleteConfirmPage: React.FC = () => {
       </View>
 
       {showSuccess && (
-        <View className={styles.successModal}>
-          <View className={styles.successContent}>
+        <View className={styles.successModal} onClick={handleCloseSuccess}>
+          <View
+            className={styles.successContent}
+            onClick={(e) => {
+              e.stopPropagation?.()
+            }}
+          >
             <View className={styles.successIcon}>
               <Text>✅</Text>
             </View>
             <Text className={styles.successTitle}>删除成功！</Text>
-            <Text className={styles.successDesc}>
-              已删除本机 {fileCount} 个重复文件
-              {'\n'}云端文件安全保留，全家共享
-            </Text>
+            <View className={styles.successDesc}>
+              <Text>已删除本机 {resultInfo.count} 个重复文件</Text>
+              <Text>云端文件安全保留，全家共享</Text>
+            </View>
             <View className={styles.saveInfo}>
               <Text className={styles.saveValue}>
-                {formatFileSize(savedSize)}
+                {formatFileSize(resultInfo.freedSize)}
               </Text>
               <Text className={styles.saveLabel}>已释放空间</Text>
             </View>
             <View className={styles.successButton}>
               <BigButton
-                text='返回相册列表'
+                text='返回相册详情'
                 type='primary'
                 size='normal'
                 onClick={handleBackToAlbum}
               />
             </View>
-            <Text className={styles.successLink} onClick={handleCancel}>
-              留在当前页面
+            <Text className={styles.successLink} onClick={handleBackToAlbumList}>
+              返回相册列表
             </Text>
           </View>
         </View>

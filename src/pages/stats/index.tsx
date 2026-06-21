@@ -1,13 +1,12 @@
-import React, { useState } from 'react'
+import React, { useMemo } from 'react'
 import { View, Text, ScrollView } from '@tarojs/components'
 import Taro, { useDidShow } from '@tarojs/taro'
 import styles from './index.module.scss'
-import { mockSaveStats } from '../../data/mock'
-import { SaveStats } from '../../types'
-import { formatFileSize, formatTime, formatDate } from '../../utils/format'
+import { useAppStore } from '../../store'
+import { formatFileSize, formatTime } from '../../utils/format'
 
 const StatsPage: React.FC = () => {
-  const [stats, setStats] = useState<SaveStats>(mockSaveStats)
+  const stats = useAppStore((state) => state.stats)
 
   useDidShow(() => {
     console.log('[Stats] 页面显示')
@@ -26,16 +25,25 @@ const StatsPage: React.FC = () => {
     })
   }
 
+  const displayRecords = useMemo(
+    () => stats.records.slice(0, 10),
+    [stats.records]
+  )
+
   return (
     <ScrollView
       className={styles.page}
       scrollY
+      enhanced
+      showScrollbar={false}
       refresherEnabled
       onRefresherRefresh={handleRefresh}
     >
       <View className={styles.header}>
         <Text className={styles.headerTitle}>累计节省流量</Text>
-        <Text className={styles.headerValue}>{formatFileSize(stats.totalSavedSize)}</Text>
+        <Text className={styles.headerValue}>
+          {formatFileSize(stats.totalSavedSize)}
+        </Text>
         <Text className={styles.headerSubtitle}>
           共完成 {stats.totalTransferCount} 次秒传
         </Text>
@@ -45,17 +53,23 @@ const StatsPage: React.FC = () => {
         <View className={styles.statsGrid}>
           <View className={styles.statCard}>
             <Text className={styles.statIcon}>📅</Text>
-            <Text className={styles.statValue}>{formatFileSize(stats.todaySavedSize)}</Text>
+            <Text className={styles.statValue}>
+              {formatFileSize(stats.todaySavedSize)}
+            </Text>
             <Text className={styles.statLabel}>今日节省</Text>
           </View>
           <View className={styles.statCard}>
             <Text className={styles.statIcon}>⚡</Text>
-            <Text className={styles.statValue}>{stats.todayTransferCount}</Text>
+            <Text className={styles.statValue}>
+              {stats.todayTransferCount}
+            </Text>
             <Text className={styles.statLabel}>今日秒传</Text>
           </View>
           <View className={styles.statCard}>
             <Text className={styles.statIcon}>📁</Text>
-            <Text className={styles.statValue}>{stats.totalTransferCount}</Text>
+            <Text className={styles.statValue}>
+              {stats.totalTransferCount}
+            </Text>
             <Text className={styles.statLabel}>总秒传数</Text>
           </View>
         </View>
@@ -68,15 +82,20 @@ const StatsPage: React.FC = () => {
         </Text>
       </View>
 
-      <View className={styles.section} style={{ margin: `0 ${32}rpx ${24}rpx` }}>
+      <View
+        className={styles.section}
+        style={{ margin: `0 ${32}rpx ${24}rpx` }}
+      >
         <View className={styles.sectionHeader}>
           <Text className={styles.sectionTitle}>秒传记录</Text>
-          <Text className={styles.sectionAction} onClick={handleGoToTransfer}>去秒传</Text>
+          <Text className={styles.sectionAction} onClick={handleGoToTransfer}>
+            去秒传
+          </Text>
         </View>
 
-        {stats.records.length > 0 ? (
+        {displayRecords.length > 0 ? (
           <View className={styles.recordList}>
-            {stats.records.slice(0, 10).map(record => (
+            {displayRecords.map((record) => (
               <View key={record.id} className={styles.recordItem}>
                 <View className={styles.recordIcon}>
                   <Text>{record.type === 'video' ? '🎬' : '🖼️'}</Text>
@@ -84,7 +103,9 @@ const StatsPage: React.FC = () => {
                 <View className={styles.recordInfo}>
                   <Text className={styles.recordName}>{record.fileName}</Text>
                   <View className={styles.recordMeta}>
-                    <Text className={styles.recordAlbum}>{record.targetAlbum}</Text>
+                    <Text className={styles.recordAlbum}>
+                      {record.targetAlbum}
+                    </Text>
                     <Text>{formatTime(record.transferTime)}</Text>
                   </View>
                 </View>

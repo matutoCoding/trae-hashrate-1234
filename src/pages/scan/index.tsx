@@ -1,23 +1,29 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useCallback } from 'react'
 import { View, Text, ScrollView } from '@tarojs/components'
-import Taro from '@tarojs/taro'
+import Taro, { useDidShow } from '@tarojs/taro'
 import styles from './index.module.scss'
 import BigButton from '../../components/BigButton'
 import ProgressBar from '../../components/ProgressBar'
 import { formatFileSize } from '../../utils/format'
-import { ScanStatus } from '../../types'
+import { ScanStatus, MediaFile } from '../../types'
+import { useAppStore } from '../../store'
+import { generateId } from '../../utils/format'
 
 type SourceType = 'album' | 'wechat' | 'all'
 
 const ScanPage: React.FC = () => {
   const [selectedSource, setSelectedSource] = useState<SourceType>('all')
-  const [scanStatus, setScanStatus] = useState<ScanStatus>('idle')
   const [scanProgress, setScanProgress] = useState(0)
   const [scannedCount, setScannedCount] = useState(0)
   const [totalFiles, setTotalFiles] = useState(0)
   const [duplicateCount, setDuplicateCount] = useState(0)
   const [duplicateSize, setDuplicateSize] = useState(0)
   const [totalSize, setTotalSize] = useState(0)
+  const [scannedFiles, setScannedFiles] = useState<MediaFile[]>([])
+
+  const scanStatus = useAppStore((state) => state.scanStatus)
+  const setScanStatus = useAppStore((state) => state.setScanStatus)
+  const addScannedFiles = useAppStore((state) => state.addScannedFiles)
 
   const sourceOptions = [
     {
@@ -40,41 +46,169 @@ const ScanPage: React.FC = () => {
     }
   ]
 
-  const handleStartScan = () => {
+  const computeHash = (filePath: string, size: number, time: number): string => {
+    const str = `${filePath}_${size}_${time}`
+    let hash = 0
+    for (let i = 0; i < str.length; i++) {
+      const char = str.charCodeAt(i)
+      hash = ((hash << 5) - hash) + char
+      hash = hash & hash
+    }
+    return 'hash_' + Math.abs(hash).toString(16)
+  }
+
+  const chooseFiles = useCallback(async () => {
+    try {
+      let files: any[] = []
+      let mediaType: any[] = []
+
+      if (selectedSource === 'album') {
+        mediaType = ['image', 'video']
+      } else if (selectedSource === 'wechat') {
+        mediaType = ['image']
+      } else {
+        mediaType = ['image', 'video']
+      }
+
+      try {
+        const result = await Taro.chooseMedia({
+          count: 50,
+          mediaType: mediaType as any,
+          sourceType: ['album'],
+          sizeType: ['original', 'compressed'],
+          camera: 'back'
+        })
+        if (result.tempFiles) {
+          files = result.tempFiles as any[]
+        }
+      } catch (chooseErr) {
+        console.log('[Scan] chooseMedia 失败，降级使用 chooseImage:', chooseErr)
+        try {
+          const imgResult = await Taro.chooseImage({
+            count: 50,
+            sizeType: ['original', 'compressed'],
+            sourceType: ['album']
+          })
+          if (imgResult.tempFilePaths) {
+            files = imgResult.tempFilePaths.map((path: string, idx: number) => ({
+              tempFilePath: path,
+              size: 1024 * 1024 * (1 + idx % 5),
+              fileType: 'image',
+              duration: 0
+            }))
+          }
+        } catch (imgErr) {
+          console.error('[Scan] 选择文件失败:', imgErr)
+          Taro.showToast({ title: '选择文件失败', icon: 'none' })
+          return null
+        }
+      }
+
+      if (!files || files.length === 0) {
+        Taro.showToast({ title: '未选择文件', icon: 'none' })
+        return null
+      }
+
+      console.log('[Scan] 选择了', files.length, '个文件')
+
+      const mediaFiles: MediaFile[] = files.map((f, index) => {
+        const filePath = f.tempFilePath || f.path || `file_${index}`
+        const fileSize = f.size || (1024 * 1024 * (2 + index % 10))
+        const fileType: 'image' | 'video' =
+          f.fileType === 'video' || f.tempFilePath?.endsWith('.mp4')
+            ? 'video'
+            : 'image'
+        const createTime = Date.now() - index * 24 * 60 * 60 * 1000 - Math.random() * 30 * 24 * 60 * 60 * 1000
+        const hash = computeHash(filePath, fileSize, Math.floor(createTime / 1000))
+        const duration = f.duration || (fileType === 'video' ? 30 + index * 10 : 0)
+
+        const imgId = fileType === 'video'
+          ? (1036 + index % 10)
+          : ((64 + index * 27) % 1080 || 64)
+
+        return {
+          id: generateId(),
+          name: fileType === 'video'
+            ? `VID_${new Date(createTime).toISOString().slice(0, 10).replace(/-/g, '')}_${index + 1}.mp4`
+            : `IMG_${new Date(createTime).toISOString().slice(0, 10).replace(/-/g, '')}_${index + 1}.jpg`,
+          size: fileSize,
+          type: fileType,
+          hash,
+          createTime: Math.floor(createTime),
+          thumbnail: `https://picsum.photos/id/${imgId}/200/200`,
+          duration: fileType === 'video' ? duration : undefined
+        }
+      })
+
+      return mediaFiles
+    } catch (error) {
+      console.error('[Scan] 选择文件异常:', error)
+      Taro.showToast({ title: '选择文件出错', icon: 'none' })
+      return null
+    }
+  }, [selectedSource])
+
+  const handleStartScan = async () => {
     if (scanStatus === 'scanning') return
 
+    console.log('[Scan] 开始扫描')
     setScanStatus('scanning')
     setScanProgress(0)
     setScannedCount(0)
     setDuplicateCount(0)
     setDuplicateSize(0)
 
-    const total = selectedSource === 'all' ? 547 : selectedSource === 'album' ? 328 : 219
-    const totalSizeValue = selectedSource === 'all' ? 2281701376 : selectedSource === 'album' ? 1572864000 : 708837376
-    const dupCount = Math.floor(total * 0.35)
-    const dupSize = Math.floor(totalSizeValue * 0.32)
+    const files = await chooseFiles()
+    if (!files || files.length === 0) {
+      setScanStatus('idle')
+      return
+    }
+
+    const total = files.length
+    const totalSizeValue = files.reduce((sum, f) => sum + f.size, 0)
 
     setTotalFiles(total)
     setTotalSize(totalSizeValue)
 
-    let current = 0
-    const interval = setInterval(() => {
-      current += Math.floor(Math.random() * 8) + 3
-      if (current >= total) {
-        current = total
-        clearInterval(interval)
-        setScanStatus('completed')
-        setDuplicateCount(dupCount)
-        setDuplicateSize(dupSize)
-        setScanProgress(100)
-        setScannedCount(total)
-      } else {
-        setScannedCount(current)
-        setScanProgress(Math.floor((current / total) * 100))
-        setDuplicateCount(Math.floor(current * 0.35))
-        setDuplicateSize(Math.floor(totalSizeValue * 0.32 * (current / total)))
+    const cloudHashes = new Set<string>()
+    const categories = useAppStore.getState().categories
+    categories.forEach((cat) => {
+      cat.cloudFiles.forEach((f) => cloudHashes.add(f.hash))
+      cat.files.forEach((f) => cloudHashes.add(f.hash))
+    })
+
+    let dupCount = 0
+    let dupSize = 0
+
+    for (let i = 0; i < total; i++) {
+      await new Promise((resolve) => setTimeout(resolve, 30))
+
+      const file = files[i]
+      if (cloudHashes.has(file.hash)) {
+        dupCount++
+        dupSize += file.size
       }
-    }, 150)
+
+      setScannedCount(i + 1)
+      setScanProgress(Math.round(((i + 1) / total) * 100))
+      setDuplicateCount(dupCount)
+      setDuplicateSize(dupSize)
+    }
+
+    setScannedFiles(files)
+
+    addScannedFiles(files, {
+      totalCount: total,
+      totalSize: totalSizeValue
+    })
+
+    setScanStatus('completed')
+
+    Taro.showToast({
+      title: `发现${dupCount}个重复`,
+      icon: 'none',
+      duration: 1500
+    })
   }
 
   const handleGoToAlbum = () => {
@@ -84,13 +218,32 @@ const ScanPage: React.FC = () => {
   }
 
   const handleQuickTransfer = () => {
-    Taro.navigateTo({
-      url: '/pages/transfer-confirm/index?category=all'
+    Taro.switchTab({
+      url: '/pages/album/index'
+    })
+    Taro.showToast({
+      title: '请在相册中选择文件',
+      icon: 'none'
     })
   }
 
+  const handleRescan = () => {
+    setScanStatus('idle')
+    setScanProgress(0)
+    setScannedCount(0)
+    setTotalFiles(0)
+    setDuplicateCount(0)
+    setDuplicateSize(0)
+    setTotalSize(0)
+    setScannedFiles([])
+  }
+
+  useDidShow(() => {
+    console.log('[Scan] 页面显示')
+  })
+
   return (
-    <ScrollView className={styles.page} scrollY>
+    <ScrollView className={styles.page} scrollY enhanced showScrollbar={false}>
       <View className={styles.header}>
         <Text className={styles.title}>家庭云盘</Text>
         <Text className={styles.subtitle}>本地哈希检测，不上传原图也能秒传</Text>
@@ -101,7 +254,7 @@ const ScanPage: React.FC = () => {
           <View className={styles.sourceSection}>
             <Text className={styles.sectionTitle}>选择扫描来源</Text>
             <View className={styles.sourceOptions}>
-              {sourceOptions.map(option => (
+              {sourceOptions.map((option) => (
                 <View
                   key={option.key}
                   className={`${styles.sourceOption} ${selectedSource === option.key ? styles.selected : ''}`}
@@ -126,7 +279,7 @@ const ScanPage: React.FC = () => {
             <View className={styles.scanButton}>
               <BigButton
                 text='开始查重扫描'
-                subText='本地哈希检测，保护隐私'
+                subText='选择文件后本地检测，保护隐私'
                 type='primary'
                 size='large'
                 onClick={handleStartScan}
@@ -140,8 +293,10 @@ const ScanPage: React.FC = () => {
             <View className={styles.scanningIcon}>
               <Text>🔍</Text>
             </View>
-            <Text className={styles.scanStatusTitle}>正在本地检测...</text>
-            <Text className={styles.scanStatusDesc}>仅在手机本地计算哈希，不上传任何文件</Text>
+            <Text className={styles.scanStatusTitle}>正在本地检测...</Text>
+            <Text className={styles.scanStatusDesc}>
+              仅在手机本地计算哈希，不上传任何文件
+            </Text>
 
             <View className={styles.scanProgress}>
               <ProgressBar percent={scanProgress} height={20} />
@@ -168,7 +323,9 @@ const ScanPage: React.FC = () => {
           <View className={styles.resultSection}>
             <View className={styles.resultHeader}>
               <Text className={styles.resultTitle}>扫描结果</Text>
-              <Text className={styles.resultCount}>共检测 {totalFiles} 个文件</Text>
+              <Text className={styles.resultCount}>
+                共检测 {totalFiles} 个文件
+              </Text>
             </View>
 
             <View className={styles.resultCards}>
@@ -204,10 +361,10 @@ const ScanPage: React.FC = () => {
               </View>
               <View className={styles.actionBtn}>
                 <BigButton
-                  text='一键秒传'
-                  type='success'
+                  text='重新扫描'
+                  type='primary'
                   size='normal'
-                  onClick={handleQuickTransfer}
+                  onClick={handleRescan}
                 />
               </View>
             </View>

@@ -1,22 +1,32 @@
-import React, { useState } from 'react'
+import React, { useMemo } from 'react'
 import { View, Text, ScrollView } from '@tarojs/components'
 import Taro, { useDidShow } from '@tarojs/taro'
 import styles from './index.module.scss'
 import AlbumCategoryCard from '../../components/AlbumCategory'
-import { mockAlbumCategories } from '../../data/mock'
-import { AlbumCategory } from '../../types'
+import { useAppStore } from '../../store'
 import { formatFileSize } from '../../utils/format'
 
 const AlbumPage: React.FC = () => {
-  const [categories, setCategories] = useState<AlbumCategory[]>(mockAlbumCategories)
+  const categories = useAppStore((state) => state.categories)
 
   useDidShow(() => {
     console.log('[Album] 页面显示')
   })
 
-  const totalCount = categories.reduce((sum, c) => sum + c.totalCount, 0)
-  const totalDuplicate = categories.reduce((sum, c) => sum + c.duplicateCount, 0)
-  const totalDuplicateSize = categories.reduce((sum, c) => sum + c.duplicateSize, 0)
+  const totalCount = useMemo(
+    () => categories.reduce((sum, c) => sum + c.totalCount, 0),
+    [categories]
+  )
+
+  const totalDuplicate = useMemo(
+    () => categories.reduce((sum, c) => sum + c.duplicateCount, 0),
+    [categories]
+  )
+
+  const totalDuplicateSize = useMemo(
+    () => categories.reduce((sum, c) => sum + c.duplicateSize, 0),
+    [categories]
+  )
 
   const handleCategoryClick = (categoryId: string) => {
     Taro.navigateTo({
@@ -35,6 +45,8 @@ const AlbumPage: React.FC = () => {
     <ScrollView
       className={styles.page}
       scrollY
+      enhanced
+      showScrollbar={false}
       refresherEnabled
       onRefresherRefresh={handleRefresh}
     >
@@ -73,7 +85,7 @@ const AlbumPage: React.FC = () => {
         </View>
 
         <View className={styles.categoryList}>
-          {categories.map(category => (
+          {categories.map((category) => (
             <AlbumCategoryCard
               key={category.id}
               category={category}
